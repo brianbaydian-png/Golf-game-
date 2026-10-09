@@ -473,9 +473,9 @@ td.over { color: var(--over); font-weight: 700; }
       html = pill("Putt", `${Math.round(hyp(ball.x - s.sx, ball.y - s.sy) * 3)} ft`) + pill("Left", fmtDist(distPin()));
     } else {
       const total = s.hazard ? (s.hazard === "water" ? "Water" : "OB") : `${Math.round(s.total ?? hyp(ball.x - s.sx, ball.y - s.sy))} yd`;
-      const side = s.side == null || Math.abs(s.side) < 1 ? "" : ` ${Math.round(Math.abs(s.side))}${s.side > 0 ? "R" : "L"}`;
+      const side = s.side == null || Math.abs(s.side) < 1 ? "on line" : `${Math.round(Math.abs(s.side))} yd ${s.side > 0 ? "R" : "L"}`;
       html = pill("Carry", s.carry == null ? "–" : `${Math.round(s.carry)} yd`) + pill("Total", total) +
-        pill("Speed", `${s.speed} mph`) + pill("Launch", `${s.launch}°`) + pill(s.shape, side.trim() ? `${side.trim()} yd` : "on line");
+        pill("Speed", `${s.speed} mph`) + pill("Launch", `${s.launch}°`) + pill(s.shape, side);
     }
     $("stats").innerHTML = html;
     $("stats").hidden = false;
