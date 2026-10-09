@@ -36,8 +36,12 @@ h1 span { color: var(--flag); }
 .chip { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; min-width: 56px; display: grid; }
 .chip small { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .chip b { font-family: var(--num); font-weight: 700; font-size: 1.3rem; font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; }
-.stage { position: relative; width: 100%; aspect-ratio: 8 / 5; max-width: 100%; border-radius: 10px; overflow: hidden; box-shadow: 0 14px 40px #0008; }
-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 10; background: #a8d2ee; max-width: 100%; border-radius: 10px; overflow: hidden; box-shadow: 0 14px 40px #0008; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.stage canvas { position: absolute; inset: 0; }
+#gl { pointer-events: none; }
+#ov { cursor: ew-resize; }
+@media (max-width: 600px) { .stage { aspect-ratio: 1 / 1; } }
 .overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; background: #0c1a13cc; text-align: center; padding: 16px; }
 .overlay h2 { font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 6vw, 3rem); margin: 0; color: var(--flag); text-wrap: balance; }
 .overlay p { margin: 0; max-width: 42ch; }
@@ -91,7 +95,8 @@ td.over { color: var(--over); font-weight: 700; }
   </header>
 
   <div class="stage">
-    <canvas id="c" aria-label="Golf course"></canvas>
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <canvas id="ov" aria-label="Golf course: drag sideways to aim, or tap the map"></canvas>
     <div class="overlay" id="overlay" hidden>
       <h2 id="ovTitle">Birdie</h2>
       <p id="ovText"></p>
@@ -114,7 +119,7 @@ td.over { color: var(--over); font-weight: 700; }
     </div>
   </section>
 
-  <p class="hint">Tap or drag on the course to aim. Pick a club from the bag (your caddie suggests one). To swing, put your finger on the ball in the swing pad and pull down for your backswing. The further you pull, the harder you hit; past the 100% line is an overswing that adds distance but is harder to control. Then swipe straight up through the ball. If your upswipe drifts right the ball slices, and if it drifts left it hooks. A slow upswipe loses power. Keyboard: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
+  <p class="hint">Drag sideways on the 3D view to aim, or tap a spot on the course map in the corner. Pick a club from the bag (your caddie suggests one). To swing, put your finger on the ball in the swing pad and pull down for your backswing. The further you pull, the harder you hit; past the 100% line is an overswing that adds distance but is harder to control. Then swipe straight up through the ball. If your upswipe drifts right the ball slices, and if it drifts left it hooks. A slow upswipe loses power. Keyboard: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
 
   <section class="card">
     <h3>Scorecard</h3>
@@ -123,6 +128,7 @@ td.over { color: var(--over); font-weight: 700; }
   </section>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
   // ---------- equipment ----------
@@ -261,13 +267,13 @@ td.over { color: var(--over); font-weight: 700; }
 
   // ---------- state ----------
   const $ = (id) => document.getElementById(id);
-  const canvas = $("c"), ctx = canvas.getContext("2d");
+  const glc = $("gl"), ov = $("ov"), octx = ov.getContext("2d");
   let cw = 800, ch = 500, dpr = 1;
 
   let st = { hole: 0, scores: Array(HOLES.length).fill(null) };
   let H, ball, prev, strokes, clubIdx = 0, aimAng = 0, phase = "aim", lie = "tee";
   let meter = { stage: 0, m: 0, power: 0 }, shot = null, roll = null, wind = { x: 0, y: 0, mph: 0 };
-  let toast = null, cam = { x: 0, y: 0, s: 1 }, camT = cam, camFrozen = false, trail = [], tick = 0, dragging = false;
+  let toast = null, trail = [], tick = 0, dragging = false;
 
   // ---------- sound ----------
   let audio = null, soundOn = true;
@@ -336,11 +342,14 @@ td.over { color: var(--over); font-weight: 700; }
     const a = Math.random() * Math.PI * 2, mph = Math.round(Math.random() * 14);
     wind = { x: Math.cos(a) * mph, y: Math.sin(a) * mph, mph };
     $("overlay").hidden = true;
-    camFrozen = false;
     lastSwing = null;
     setSwingMsg(DEFAULT_MSG);
+    buildScene(H);
     prepareShot();
-    cam = { ...camT };
+    // fly in from behind the green to the tee
+    camera.position.copy(V(H.pin.x + 40, H.pin.y, 70));
+    camLook.copy(V(H.pin.x, H.pin.y));
+    introT = 2.2;
     toast = { text: `Hole ${i + 1} · ${H.name} · Par ${H.par} · ${H.length} yd`, t: 200 };
     renderCard();
   }
@@ -351,7 +360,7 @@ td.over { color: var(--over); font-weight: 700; }
     clubIdx = autoClub();
     autoAim();
     phase = "aim"; meter = { stage: 0, m: 0, power: 0 }; ball.z = 0;
-    camFrozen = false;
+    pose.theta = pose.target = 0;
     ui();
   }
 
@@ -390,8 +399,9 @@ td.over { color: var(--over); font-weight: 700; }
     const depth = p.y - swipe.start.y;
     if (swipe.stage === "back") {
       if (depth > swipe.depth) { swipe.depth = depth; swipe.bottom = p; }
-      else if (swipe.depth > 15 && swipe.depth - depth > 12) swipe.stage = "through";
+      else if (swipe.depth > 15 && swipe.depth - depth > 12) { swipe.stage = "through"; swipe.upT = p.t; }
       const pctPow = Math.round(Math.min(1.1, Math.max(0, swipe.depth) / fullDepth()) * 100);
+      pose.target = Math.min(1.1, Math.max(0, swipe.depth) / fullDepth()) * (club().putter ? 0.8 : 2.5);
       if (swipe.stage === "back") setSwingMsg(`Backswing ${pctPow}%${pctPow > 100 ? " (overswing)" : ""}`);
     }
     if (swipe.stage === "through" && p.y <= swipe.start.y) strike(p);
@@ -409,6 +419,7 @@ td.over { color: var(--over); font-weight: 700; }
   function cancelSwing(msg) {
     swipe = null;
     phase = "aim";
+    pose.target = 0;
     setSwingMsg(msg);
     ui();
   }
@@ -418,11 +429,12 @@ td.over { color: var(--over); font-weight: 700; }
     swipe = null;
     const angle = Math.atan2(p.x - b.x, Math.max(1, b.y - p.y)) * 180 / Math.PI;
     const raw = Math.min(1.1, s.depth / fullDepth());
-    const slow = p.t - b.t > 650;
+    const slow = p.t - (s.upT || b.t) > 650;
     meter.power = Math.max(0.03, raw * (slow ? 0.85 : 1));
     // fire() treats |acc| <= 2 as dead straight
     const acc = Math.abs(angle) <= STRAIGHT ? 0 : Math.max(-20, Math.min(20, angle * 0.9));
     lastSwing = { pts: s.pts, start: s.start };
+    pose.target = club().putter ? -0.7 : -2.3;
     const [r, l] = club().putter ? ["Pushed right", "Pulled left"] : ["Slice", "Hook"];
     const deg = Math.round(Math.abs(angle));
     const shape = acc === 0 ? "Pure strike" : angle > 0 ? `${r} ${deg}°` : `${l} ${deg}°`;
@@ -494,12 +506,12 @@ td.over { color: var(--over); font-weight: 700; }
     let a = Math.abs(acc) <= 2 ? 0 : acc;
     if (power > 1) a = a * (1 + (power - 1) * 6) + (Math.random() - 0.5) * (power - 1) * 40;
     trail = [];
-    camT = cam; camFrozen = true;
 
     if (c.putter) {
       const ang = aimAng + a * 0.006, v0 = Math.sqrt(2 * DECEL.green * puttMax() * power);
       sfx.putt();
-      startRoll(Math.cos(ang) * v0, Math.sin(ang) * v0, 2.5);
+      flyDir = { x: Math.cos(ang), y: Math.sin(ang) };
+      startRoll(Math.cos(ang) * v0, Math.sin(ang) * v0, 2.5, true);
       ui();
       return;
     }
@@ -525,7 +537,7 @@ td.over { color: var(--over); font-weight: 700; }
     }
     shot = { P, apex, t: 0, endT, hitTree, dur: 0.7 + carry / 170, carry, c };
     const land = P(endT);
-    camT = camFor([ball, land, H.pin], 25, 80);
+    flyDir = dir;
     phase = "flight";
     sfx.swing(power);
     ui();
@@ -575,8 +587,8 @@ td.over { color: var(--over); font-weight: 700; }
     startRoll(dx * v0, dy * v0, 3);
   }
 
-  function startRoll(vx, vy, ts) {
-    roll = { vx, vy, ts, lipped: false };
+  function startRoll(vx, vy, ts, putt = false) {
+    roll = { vx, vy, ts, putt, lipped: false };
     phase = "roll";
   }
 
@@ -727,199 +739,380 @@ td.over { color: var(--over); font-weight: 700; }
     }
   });
 
-  // aiming on the canvas
-  function toWorld(e) {
-    const r = canvas.getBoundingClientRect();
-    return { x: (e.clientX - r.left - cw / 2) / cam.s + cam.x, y: (e.clientY - r.top - ch / 2) / cam.s + cam.y };
+  // ---------- 3D scene ----------
+  // Course coordinates (x along the hole, y left/right, z height) map to three.js as (x, z, y).
+  const V = (x, y, z = 0) => new THREE.Vector3(x, z, y);
+  let renderer = null;
+  try { renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, logarithmicDepthBuffer: true }); } catch (e) { renderer = null; }
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 1.6, 0.1, 4000);
+  const camLook = new THREE.Vector3();
+  let introT = 0, flyDir = { x: 1, y: 0 }, holeGroup = null, greenMesh = null;
+
+  {
+    const sky = document.createElement("canvas"); sky.width = 2; sky.height = 256;
+    const g = sky.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, "#4f93d0"); gr.addColorStop(0.6, "#a8d2ee"); gr.addColorStop(1, "#d8ecea");
+    g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
+    scene.background = new THREE.CanvasTexture(sky);
   }
-  function aimAt(e) {
-    const p = toWorld(e);
-    if (hyp(p.x - ball.x, p.y - ball.y) > 0.3) aimAng = Math.atan2(p.y - ball.y, p.x - ball.x);
+  scene.fog = new THREE.Fog(0xcde5e6, 240, 950);
+  scene.add(new THREE.HemisphereLight(0xe2f2ff, 0x46703a, 0.85));
+  const sunLight = new THREE.DirectionalLight(0xfff2d8, 0.8);
+  sunLight.position.set(-120, 200, -60); scene.add(sunLight);
+  const outerGround = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshBasicMaterial({ color: 0x2c5f2e }));
+  outerGround.rotation.x = -Math.PI / 2; outerGround.position.y = -0.6; scene.add(outerGround);
+
+  const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+  const trunkGeo = new THREE.CylinderGeometry(0.25, 0.4, 1, 6);
+  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
+  const trunkMat = lambert(0x5b4030);
+  const leafMats = [0x2f6b2f, 0x295c2b, 0x3b7a35, 0x24552a].map((c) => lambert(c));
+  function addTree(group, x, y, r, h, k) {
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.scale.set(r * 0.25, h * 0.45, r * 0.25); trunk.position.set(x, h * 0.225, y);
+    const top = new THREE.Mesh(canopyGeo, leafMats[k % leafMats.length]);
+    top.scale.set(r, h * 0.38, r); top.position.set(x, h * 0.62, y);
+    top.rotation.y = k;
+    group.add(trunk, top);
   }
-  canvas.addEventListener("pointerdown", (e) => {
-    if (phase !== "aim") return;
-    dragging = true; canvas.setPointerCapture(e.pointerId); aimAt(e);
-  });
-  canvas.addEventListener("pointermove", (e) => { if (dragging && phase === "aim") aimAt(e); });
-  canvas.addEventListener("pointerup", () => { dragging = false; });
-  canvas.addEventListener("pointercancel", () => { dragging = false; });
+
+  // flagstick
+  const pinGroup = new THREE.Group();
+  const flagMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55), lambert(0xf2c230, { side: THREE.DoubleSide }));
+  {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.6, 6), lambert(0xf5f5f5));
+    pole.position.y = 1.3;
+    flagMesh.position.set(0.45, 2.3, 0);
+    pinGroup.add(pole, flagMesh);
+  }
+  scene.add(pinGroup);
+
+  // ball, its shadow, the landing reticle, the shot preview and the flight trail
+  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), lambert(0xffffff, { emissive: 0x444444 }));
+  const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
+  shadowMesh.rotation.x = -Math.PI / 2;
+  const reticle = new THREE.Mesh(new THREE.RingGeometry(0.72, 1, 40), new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
+  reticle.rotation.x = -Math.PI / 2;
+  const PREV_N = 60, TRAIL_N = 600;
+  const lineOf = (n, mat) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    const l = new THREE.Line(geo, mat); l.frustumCulled = false; return l;
+  };
+  const prevLine = lineOf(PREV_N, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.9 }));
+  const trailLine = lineOf(TRAIL_N, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
+  scene.add(ballMesh, shadowMesh, reticle, prevLine, trailLine);
+
+  // the golfer: stands on the left of the ball (local -z), faces +z, target is local +x
+  const golfer = new THREE.Group(), swingPivot = new THREE.Group();
+  const SHOULDER = new THREE.Vector3(0, 1.42, -0.62);
+  const toBall = new THREE.Vector3(0, 0.05, 0).sub(SHOULDER);
+  const swingAxis = new THREE.Vector3(1, 0, 0).cross(toBall).normalize();
+  {
+    const shirt = lambert(0x1d4a7a), pants = lambert(0xd8c9a3), skin = lambert(0xe0b48f), cap = lambert(0xf2c230), steel = lambert(0xcfd6dc), shoe = lambert(0x222222);
+    const cyl = (r1, r2, h, m) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m);
+    for (const sx of [-0.17, 0.17]) {
+      const leg = cyl(0.09, 0.075, 0.86, pants); leg.position.set(sx, 0.45, -0.8); leg.rotation.x = 0.08;
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.26), shoe); foot.position.set(sx, 0.035, -0.76);
+      golfer.add(leg, foot);
+    }
+    const hips = cyl(0.19, 0.19, 0.18, pants); hips.position.set(0, 0.9, -0.8);
+    const torso = cyl(0.21, 0.17, 0.66, shirt); torso.position.set(0, 1.18, -0.71); torso.rotation.x = 0.4;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), skin); head.position.set(0, 1.6, -0.55);
+    const capTop = cyl(0.125, 0.13, 0.08, cap); capTop.position.set(0, 1.69, -0.56);
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.14), cap); brim.position.set(0, 1.66, -0.44);
+    golfer.add(hips, torso, head, capTop, brim);
+
+    const arm = new THREE.Group();
+    arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), toBall.clone().normalize());
+    const L = toBall.length();
+    const arms = cyl(0.06, 0.05, 0.62, shirt); arms.position.y = -0.31;
+    const hands = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), skin); hands.position.y = -0.62;
+    const shaft = cyl(0.012, 0.012, L - 0.62, steel); shaft.position.y = -(0.62 + L) / 2;
+    const headC = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.05), shoe); headC.position.y = -L;
+    arm.add(arms, hands, shaft, headC);
+    swingPivot.position.copy(SHOULDER);
+    swingPivot.add(arm);
+    golfer.add(swingPivot);
+  }
+  scene.add(golfer);
+  const pose = { theta: 0, target: 0 };
+
+  // ---------- course painting ----------
+  function ell(g, e, pad = 0) { g.beginPath(); g.ellipse(e[0], e[1], Math.max(0.1, e[2] + pad), Math.max(0.1, e[3] + pad), 0, 0, Math.PI * 2); }
+  function circ(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
+
+  function paintGreenSurface(g, h) {
+    const gr = h.green;
+    circ(g, gr.x, gr.y, gr.r + 2.5); g.fillStyle = "#6fc05a"; g.fill();
+    circ(g, gr.x, gr.y, gr.r); g.fillStyle = "#86d36c"; g.fill();
+    g.save(); circ(g, gr.x, gr.y, gr.r); g.clip();
+    g.fillStyle = "#92db77";
+    for (let x = gr.x - gr.r; x < gr.x + gr.r; x += 3) g.fillRect(x, gr.y - gr.r, 1.5, gr.r * 2);
+    const sm = hyp(h.slope[0], h.slope[1]);
+    if (sm > 0.2) { // chevrons point downhill
+      const ux = h.slope[0] / sm, uy = h.slope[1] / sm, L = 0.45;
+      g.strokeStyle = `rgba(255,255,255,${Math.min(0.45, 0.12 + sm * 0.1)})`; g.lineWidth = 0.07;
+      for (let x = gr.x - gr.r; x <= gr.x + gr.r; x += 1.8) for (let y = gr.y - gr.r; y <= gr.y + gr.r; y += 1.8) {
+        g.beginPath();
+        g.moveTo(x - ux * L - uy * L * 0.7, y - uy * L + ux * L * 0.7);
+        g.lineTo(x, y);
+        g.lineTo(x - ux * L + uy * L * 0.7, y - uy * L - ux * L * 0.7);
+        g.stroke();
+      }
+    }
+    g.restore();
+    circ(g, h.pin.x, h.pin.y, 0.09); g.fillStyle = "#0b1610"; g.fill();
+    g.strokeStyle = "#ffffff99"; g.lineWidth = 0.02; g.stroke();
+  }
+
+  function paintCourse(h) {
+    const [b0, b1, b2, b3] = h.bounds, M = 60;
+    const X0 = b0 - M, Y0 = b1 - M, W = b2 - b0 + 2 * M, Ht = b3 - b1 + 2 * M;
+    const PX = Math.min(6, 4096 / W, 4096 / Ht);
+    const c = document.createElement("canvas");
+    c.width = Math.round(W * PX); c.height = Math.round(Ht * PX);
+    const world = (g) => g.setTransform(PX, 0, 0, PX, -X0 * PX, -Y0 * PX);
+    const g = c.getContext("2d"); world(g);
+    g.fillStyle = "#2c5f2e"; g.fillRect(X0, Y0, W, Ht);
+    g.fillStyle = "#3d7a3b"; g.fillRect(b0, b1, b2 - b0, b3 - b1);
+    const rand = rng(99);
+    for (let i = 0; i < 9000; i++) { g.fillStyle = rand() < 0.5 ? "#00000014" : "#ffffff0e"; g.fillRect(X0 + rand() * W, Y0 + rand() * Ht, 0.8, 0.8); }
+    g.fillStyle = "#ffffff"; // white out-of-bounds stakes
+    for (let x = b0; x <= b2; x += 10) { circ(g, x, b1, 0.5); g.fill(); circ(g, x, b3, 0.5); g.fill(); }
+    for (let y = b1; y <= b3; y += 10) { circ(g, b0, y, 0.5); g.fill(); circ(g, b2, y, 0.5); g.fill(); }
+
+    const fwPath = (q) => { q.beginPath(); h.fw.forEach(([x, y], i) => (i ? q.lineTo(x, y) : q.moveTo(x, y))); };
+    g.lineCap = "round"; g.lineJoin = "round";
+    fwPath(g); g.strokeStyle = "#4f9844"; g.lineWidth = h.hw * 2 + 5; g.stroke();
+    const f = document.createElement("canvas"); f.width = c.width; f.height = c.height;
+    const fg = f.getContext("2d"); world(fg);
+    fg.lineCap = "round"; fg.lineJoin = "round";
+    fwPath(fg); fg.strokeStyle = "#62b04f"; fg.lineWidth = h.hw * 2; fg.stroke();
+    fg.globalCompositeOperation = "source-atop"; fg.fillStyle = "#ffffff18";
+    for (let x = X0; x < X0 + W; x += 16) fg.fillRect(x, Y0, 8, Ht);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(f, 0, 0); g.restore();
+
+    g.fillStyle = "#6cbc58"; g.fillRect(-6, -5, 12, 10);
+    for (const e of h.water) {
+      ell(g, e, 1.2); g.fillStyle = "#5c8f4c"; g.fill();
+      ell(g, e); g.fillStyle = "#2f78b7"; g.fill();
+      ell(g, e, -2); g.fillStyle = "#3a87c4"; g.fill();
+    }
+    paintGreenSurface(g, h);
+    for (const e of h.bunkers) {
+      ell(g, e, 0.8); g.fillStyle = "#4e8e43"; g.fill();
+      ell(g, e); g.fillStyle = "#e6d39b"; g.fill();
+      ell(g, e, -1); g.fillStyle = "#ecdcaa"; g.fill();
+    }
+    g.fillStyle = "#00000038"; // tree shadows, sun from the upper left
+    for (const [x, y, r] of h.trees) { g.beginPath(); g.ellipse(x + r * 0.6, y + r * 0.5, r * 1.05, r * 0.9, 0, 0, Math.PI * 2); g.fill(); }
+    return { canvas: c, X0, Y0, W, H: Ht };
+  }
+
+  // a sharper copy of the green so putting up close stays crisp
+  function paintGreen(h) {
+    const R = h.green.r + 3, PX = 48, c = document.createElement("canvas");
+    c.width = c.height = Math.round(R * 2 * PX);
+    const g = c.getContext("2d");
+    g.setTransform(PX, 0, 0, PX, -(h.green.x - R) * PX, -(h.green.y - R) * PX);
+    paintGreenSurface(g, h);
+    return { canvas: c, R };
+  }
+
+  function buildScene(h) {
+    if (holeGroup) {
+      scene.remove(holeGroup);
+      for (const m of holeGroup.userData.own) { m.geometry.dispose(); m.material.map.dispose(); m.material.dispose(); }
+    }
+    holeGroup = new THREE.Group();
+    const aniso = renderer ? renderer.capabilities.getMaxAnisotropy() : 1;
+    const art = paintCourse(h);
+    const tex = new THREE.CanvasTexture(art.canvas); tex.anisotropy = aniso;
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(art.W, art.H), new THREE.MeshBasicMaterial({ map: tex }));
+    plane.rotation.x = -Math.PI / 2; plane.position.set(art.X0 + art.W / 2, 0, art.Y0 + art.H / 2);
+    const ga = paintGreen(h);
+    const gtex = new THREE.CanvasTexture(ga.canvas); gtex.anisotropy = aniso;
+    greenMesh = new THREE.Mesh(new THREE.CircleGeometry(ga.R, 64), new THREE.MeshBasicMaterial({ map: gtex, polygonOffset: true, polygonOffsetFactor: -2 }));
+    greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.green.x, 0.01, h.green.y);
+    holeGroup.add(plane, greenMesh);
+    holeGroup.userData = { own: [plane, greenMesh], art };
+    h.trees.forEach(([x, y, r, ht], i) => addTree(holeGroup, x, y, r, ht, i));
+    const rand = rng(500 + st.hole), [b0, b1, b2, b3] = h.bounds;
+    for (let i = 0; i < 160; i++) { // woods beyond the out-of-bounds line
+      const side = i % 4;
+      let x, y;
+      if (side < 2) { x = b0 - 30 + rand() * (b2 - b0 + 120); y = side ? b3 + 12 + rand() * 55 : b1 - 12 - rand() * 55; }
+      else { y = b1 - 60 + rand() * (b3 - b1 + 120); x = side === 2 ? b0 - 14 - rand() * 50 : b2 + 14 + rand() * 70; }
+      addTree(holeGroup, x, y, 6 + rand() * 5, 14 + rand() * 12, i);
+    }
+    scene.add(holeGroup);
+    pinGroup.position.copy(V(h.pin.x, h.pin.y));
+  }
 
   // ---------- camera ----------
-  function camFor(points, margin, minSize) {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const p of points) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
-    const w = Math.max(x1 - x0 + margin * 2, minSize), h = Math.max(y1 - y0 + margin * 2, minSize * 0.6);
-    return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, s: Math.min(cw / w, ch / h) };
+  function updateCamera(dt) {
+    if (phase === "holed" || phase === "done") { camera.lookAt(camLook); return; }
+    const dir = { x: Math.cos(aimAng), y: Math.sin(aimAng) }, right = { x: -dir.y, y: dir.x };
+    let pos, look, k;
+    if (phase === "flight" || phase === "roll") {
+      const putt = roll && roll.putt;
+      const back = putt ? 3.4 : phase === "roll" ? 10 : 16, up = putt ? 1.3 : 3 + ball.z * 0.45;
+      pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
+      look = V(ball.x, ball.y, ball.z || 0);
+      k = 1 - Math.pow(putt ? 0.02 : 0.0004, dt);
+    } else {
+      const putt = club().putter;
+      const back = putt ? 4.6 : 7.5, up = putt ? 2 : 2.7, side = putt ? 0.7 : 0.9;
+      pos = V(ball.x - dir.x * back + right.x * side, ball.y - dir.y * back + right.y * side, up);
+      const ahead = putt ? Math.min(Math.max(distPin(), 3), 12) : 90;
+      look = V(ball.x + dir.x * ahead, ball.y + dir.y * ahead, putt ? 0 : 2);
+      k = 1 - Math.pow(0.0005, dt);
+    }
+    if (introT > 0) { introT -= dt; k = 1 - Math.pow(0.12, dt); }
+    camera.position.lerp(pos, k); camLook.lerp(look, k);
+    camera.lookAt(camLook);
   }
-  function aimCam() {
-    if (onGreenish() && club().putter) {
-      const g = H.green;
-      return camFor([ball, H.pin, { x: g.x - g.r, y: g.y - g.r }, { x: g.x + g.r, y: g.y + g.r }], 4, 30);
-    }
-    const c = carryEst();
-    return camFor([ball, H.pin, { x: ball.x + Math.cos(aimAng) * c, y: ball.y + Math.sin(aimAng) * c }], 25, 80);
-  }
 
-  // ---------- drawing ----------
-  const sandDots = Array.from({ length: 60 }, () => [Math.random() * 2 - 1, Math.random() * 2 - 1]);
-  function ellipse(e, pad = 0) { ctx.beginPath(); ctx.ellipse(e[0], e[1], e[2] + pad, e[3] + pad, 0, 0, Math.PI * 2); }
-  function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
-
-  function draw() {
-    const s = cam.s, px = 1 / s;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#1f3d27"; ctx.fillRect(0, 0, cw, ch);
-    ctx.save();
-    ctx.translate(cw / 2, ch / 2); ctx.scale(s, s); ctx.translate(-cam.x, -cam.y);
-
-    // rough + OB line
-    const [x0, y0, x1, y1] = H.bounds;
-    ctx.fillStyle = "#3d7a3b"; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-    ctx.setLineDash([6 * px, 6 * px]); ctx.strokeStyle = "#ffffffaa"; ctx.lineWidth = 1.5 * px;
-    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
-
-    // fairway
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    const fwPath = () => { ctx.beginPath(); H.fw.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); };
-    fwPath(); ctx.strokeStyle = "#4f9844"; ctx.lineWidth = H.hw * 2 + 5; ctx.stroke();
-    fwPath(); ctx.strokeStyle = "#62b04f"; ctx.lineWidth = H.hw * 2; ctx.stroke();
-    fwPath(); ctx.strokeStyle = "#6aba56"; ctx.lineWidth = H.hw * 0.9; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
-
-    // tee box
-    ctx.fillStyle = "#6cbc58"; ctx.fillRect(-6, -5, 12, 10);
-    ctx.fillStyle = "#f7f6f0"; circle(-1, -4, 0.8); ctx.fill(); circle(-1, 4, 0.8); ctx.fill();
-
-    // water
-    for (const e of H.water) {
-      ellipse(e, 1.2); ctx.fillStyle = "#5c8f4c"; ctx.fill();
-      ellipse(e); ctx.fillStyle = "#2f78b7"; ctx.fill();
-      ctx.save(); ellipse(e); ctx.clip(); ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 1.2 * px;
-      for (let yy = e[1] - e[3]; yy < e[1] + e[3]; yy += 5) {
-        ctx.beginPath();
-        for (let xx = e[0] - e[2]; xx <= e[0] + e[2]; xx += 2) ctx.lineTo(xx, yy + Math.sin((xx + tick * 0.4) / 4 + yy) * 0.6);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // green with mowing stripes
-    const g = H.green;
-    circle(g.x, g.y, g.r + 2.5); ctx.fillStyle = "#6fc05a"; ctx.fill();
-    circle(g.x, g.y, g.r); ctx.fillStyle = "#86d36c"; ctx.fill();
-    ctx.save(); circle(g.x, g.y, g.r); ctx.clip();
-    ctx.fillStyle = "#93dc78";
-    for (let xx = g.x - g.r; xx < g.x + g.r; xx += 6) ctx.fillRect(xx, g.y - g.r, 3, g.r * 2);
-    // slope chevrons once zoomed in
-    const sm = hyp(H.slope[0], H.slope[1]);
-    if (s > 6 && sm > 0.2) {
-      const ux = H.slope[0] / sm, uy = H.slope[1] / sm, L = 0.9;
-      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.55, 0.15 + sm * 0.15)})`; ctx.lineWidth = 1.3 * px;
-      const off = (tick * 0.02 * sm) % 3;
-      for (let xx = g.x - g.r; xx <= g.x + g.r; xx += 3) for (let yy = g.y - g.r; yy <= g.y + g.r; yy += 3) {
-        const cx = xx + ux * off, cy = yy + uy * off;
-        ctx.beginPath();
-        ctx.moveTo(cx - ux * L - uy * L * 0.7, cy - uy * L + ux * L * 0.7);
-        ctx.lineTo(cx, cy);
-        ctx.lineTo(cx - ux * L + uy * L * 0.7, cy - uy * L - ux * L * 0.7);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-
-    // bunkers
-    for (const e of H.bunkers) {
-      ellipse(e, 0.8); ctx.fillStyle = "#4e8e43"; ctx.fill();
-      ellipse(e); ctx.fillStyle = "#e6d39b"; ctx.fill();
-      ctx.fillStyle = "#cdb57c";
-      for (const [a, b] of sandDots) if (a * a + b * b < 0.8) ctx.fillRect(e[0] + a * e[2], e[1] + b * e[3], 0.5, 0.5);
-    }
-
-    // cup
-    circle(H.pin.x, H.pin.y, Math.max(CUP_R * 1.5, 2.6 * px)); ctx.fillStyle = "#10201a"; ctx.fill();
-
-    // aim guide
+  function updateScene(dt) {
+    // golfer follows the ball while you set up, then stays put through the shot
     if (phase === "aim" || phase === "swing") {
-      const c = carryEst(), tx = ball.x + Math.cos(aimAng) * c, ty = ball.y + Math.sin(aimAng) * c;
-      ctx.setLineDash([5 * px, 6 * px]); ctx.strokeStyle = "#ffffffd0"; ctx.lineWidth = 2 * px;
-      ctx.beginPath(); ctx.moveTo(ball.x, ball.y); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
-      if (!club().putter) {
-        circle(tx, ty, Math.max(4, 7 * px)); ctx.strokeStyle = "#f2c230"; ctx.lineWidth = 2 * px; ctx.stroke();
-        circle(tx, ty, 1.5 * px); ctx.fillStyle = "#f2c230"; ctx.fill();
+      golfer.position.copy(V(ball.x, ball.y)); golfer.rotation.y = -aimAng;
+    }
+    golfer.visible = phase !== "holed" && phase !== "done";
+    const rate = pose.target < pose.theta - 0.5 ? 0.5 : 0.25;
+    pose.theta += (pose.target - pose.theta) * (1 - Math.pow(1 - rate, dt * 60));
+    swingPivot.quaternion.setFromAxisAngle(swingAxis, pose.theta);
+
+    const showBall = phase !== "holed" && phase !== "done";
+    ballMesh.visible = shadowMesh.visible = showBall;
+    const z = ball.z || 0, d = camera.position.distanceTo(V(ball.x, ball.y, z));
+    const s = Math.max(0.045, d * 0.0055);
+    ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, z + s));
+    shadowMesh.scale.setScalar(s * 1.1 * Math.max(0.4, 1 - z / 60)); shadowMesh.position.copy(V(ball.x, ball.y, 0.03));
+
+    pinGroup.scale.setScalar(Math.max(1, camera.position.distanceTo(pinGroup.position) / 45));
+    flagMesh.rotation.y = Math.sin(tick / 14) * 0.35;
+
+    const aiming = phase === "aim" || phase === "swing";
+    prevLine.visible = aiming; reticle.visible = aiming && !club().putter;
+    if (aiming) {
+      const dir = { x: Math.cos(aimAng), y: Math.sin(aimAng) }, arr = prevLine.geometry.attributes.position.array, c = club();
+      const L = c.putter ? Math.max(0.5, distPin()) : carryEst(), apex = c.putter ? 0 : c.apex;
+      for (let i = 0; i < PREV_N; i++) {
+        const t = i / (PREV_N - 1), p = V(ball.x + dir.x * L * t, ball.y + dir.y * L * t, 4 * apex * t * (1 - t) + (c.putter ? 0.04 : 0.3));
+        arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z;
+      }
+      prevLine.geometry.attributes.position.needsUpdate = true;
+      prevLine.material.dashSize = c.putter ? 0.25 : 3; prevLine.material.gapSize = c.putter ? 0.18 : 2;
+      prevLine.computeLineDistances();
+      if (!c.putter) {
+        reticle.position.copy(V(ball.x + dir.x * L, ball.y + dir.y * L, 0.08));
+        reticle.scale.setScalar(Math.max(2.5, camera.position.distanceTo(reticle.position) * 0.02));
       }
     }
+    const tarr = trailLine.geometry.attributes.position.array, n = Math.min(trail.length, TRAIL_N);
+    for (let i = 0; i < n; i++) { const p = trail[trail.length - n + i]; tarr[i * 3] = p.x; tarr[i * 3 + 1] = p.z + 0.1; tarr[i * 3 + 2] = p.y; }
+    trailLine.geometry.attributes.position.needsUpdate = true;
+    trailLine.geometry.setDrawRange(0, n);
+  }
 
-    // flight trail
-    if (trail.length > 1) {
-      ctx.strokeStyle = "#ffffff70"; ctx.lineWidth = 1.5 * px; ctx.beginPath();
-      trail.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke();
+  // ---------- overlay: minimap, wind, messages ----------
+  let mini = null;
+  function drawOverlay() {
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    octx.clearRect(0, 0, cw, ch);
+    if (!holeGroup) return;
+    const [b0, b1, b2, b3] = H.bounds;
+    const mw = Math.min(118, cw * 0.2), mh = Math.min(250, ch * 0.45), mx = 10, my = 10;
+    const s = Math.min((mh - 14) / (b2 - b0), (mw - 14) / (b3 - b1));
+    const xc = (b0 + b2) / 2, yc = (b1 + b3) / 2, cx = mx + mw / 2, cy = my + mh / 2;
+    mini = { mx, my, mw, mh, s, xc, yc, cx, cy };
+    const toM = (x, y) => [cx + (y - yc) * s, cy - (x - xc) * s];
+    octx.fillStyle = "#0f2119c8"; octx.fillRect(mx, my, mw, mh);
+    octx.save();
+    octx.beginPath(); octx.rect(mx, my, mw, mh); octx.clip();
+    octx.translate(cx, cy); octx.rotate(-Math.PI / 2);
+    const a = holeGroup.userData.art;
+    octx.drawImage(a.canvas, (a.X0 - xc) * s, (a.Y0 - yc) * s, a.W * s, a.H * s);
+    octx.restore();
+    octx.fillStyle = "#24532acc";
+    for (const [tx, ty, r] of H.trees) { const [px, py] = toM(tx, ty); octx.beginPath(); octx.arc(px, py, Math.max(1.2, r * s), 0, Math.PI * 2); octx.fill(); }
+    const [bx, by] = toM(ball.x, ball.y), [px, py] = toM(H.pin.x, H.pin.y);
+    if (phase === "aim" || phase === "swing") {
+      const c = carryEst(), [lx, ly] = toM(ball.x + Math.cos(aimAng) * c, ball.y + Math.sin(aimAng) * c);
+      octx.strokeStyle = "#f2c230"; octx.lineWidth = 1.5; octx.setLineDash([3, 3]);
+      octx.beginPath(); octx.moveTo(bx, by); octx.lineTo(lx, ly); octx.stroke(); octx.setLineDash([]);
+      if (!club().putter) { octx.beginPath(); octx.arc(lx, ly, 4, 0, Math.PI * 2); octx.stroke(); }
     }
+    octx.fillStyle = "#f2c230"; octx.beginPath(); octx.arc(px, py, 3, 0, Math.PI * 2); octx.fill();
+    octx.fillStyle = "#ffffff"; octx.strokeStyle = "#000000"; octx.lineWidth = 1;
+    octx.beginPath(); octx.arc(bx, by, 3, 0, Math.PI * 2); octx.fill(); octx.stroke();
+    octx.strokeStyle = "#ffffff30"; octx.strokeRect(mx + 0.5, my + 0.5, mw - 1, mh - 1);
 
-    // ball shadow
-    if (phase !== "holed" && phase !== "done") {
-      ctx.fillStyle = "#00000055";
-      ctx.beginPath(); ctx.ellipse(ball.x + ball.z * 0.15, ball.y + ball.z * 0.1, 3 * px, 2.2 * px, 0, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // trees
-    for (const [tx, ty, r] of H.trees) {
-      ctx.fillStyle = "#00000040"; circle(tx + r * 0.35, ty + r * 0.45, r); ctx.fill();
-      ctx.fillStyle = "#24532a"; circle(tx, ty, r); ctx.fill();
-      ctx.fillStyle = "#326b34"; circle(tx - r * 0.22, ty - r * 0.25, r * 0.62); ctx.fill();
-      ctx.fillStyle = "#3f7d3c"; circle(tx - r * 0.35, ty - r * 0.38, r * 0.28); ctx.fill();
-    }
-
-    // flag
-    const fh = 30 * px, wave = Math.sin(tick / 9) * 2 * px;
-    ctx.strokeStyle = "#f5f5f5"; ctx.lineWidth = 2 * px;
-    ctx.beginPath(); ctx.moveTo(H.pin.x, H.pin.y); ctx.lineTo(H.pin.x, H.pin.y - fh); ctx.stroke();
-    ctx.fillStyle = "#f2c230"; ctx.beginPath(); ctx.moveTo(H.pin.x, H.pin.y - fh);
-    ctx.quadraticCurveTo(H.pin.x + 8 * px, H.pin.y - fh + 3 * px + wave, H.pin.x + 15 * px, H.pin.y - fh + 5 * px);
-    ctx.lineTo(H.pin.x, H.pin.y - fh + 11 * px); ctx.closePath(); ctx.fill();
-
-    // ball (lifted toward the viewer by its height)
-    if (phase !== "holed" && phase !== "done") {
-      const r = (3 + ball.z * 0.08) * px, by = ball.y - ball.z * 0.35;
-      circle(ball.x, by, r); ctx.fillStyle = "#ffffff"; ctx.fill();
-      ctx.strokeStyle = "#00000055"; ctx.lineWidth = 0.8 * px; ctx.stroke();
-    }
-    ctx.restore();
-
-    // screen-space HUD: wind
-    const wx = cw - 44, wy = 44;
-    ctx.fillStyle = "#0f2119b0"; circle(wx, wy, 30); ctx.fill();
-    ctx.strokeStyle = "#ffffff40"; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = "#e9f0e6"; ctx.font = "700 12px 'Barlow Condensed', 'Arial Narrow', sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    // wind arrow, relative to where the camera is looking (up = straight ahead)
+    const wx = cw - 42, wy = 42;
+    octx.fillStyle = "#0f2119c0"; octx.beginPath(); octx.arc(wx, wy, 30, 0, Math.PI * 2); octx.fill();
+    octx.font = "700 12px 'Barlow Condensed', 'Arial Narrow', sans-serif"; octx.textAlign = "center"; octx.textBaseline = "middle";
     if (wind.mph) {
-      const a = Math.atan2(wind.y, wind.x), L = 18;
-      ctx.save(); ctx.translate(wx, wy - 5); ctx.rotate(a);
-      ctx.strokeStyle = "#f2c230"; ctx.fillStyle = "#f2c230"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-L / 2, 0); ctx.lineTo(L / 2 - 4, 0); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(L / 2 + 2, 0); ctx.lineTo(L / 2 - 6, -6); ctx.lineTo(L / 2 - 6, 6); ctx.closePath(); ctx.fill();
-      ctx.restore();
-      ctx.fillStyle = "#e9f0e6"; ctx.fillText(`${wind.mph} MPH`, wx, wy + 17);
-    } else ctx.fillText("CALM", wx, wy);
+      const heading = Math.atan2(camLook.z - camera.position.z, camLook.x - camera.position.x);
+      const rel = Math.atan2(wind.y, wind.x) - heading - Math.PI / 2;
+      octx.save(); octx.translate(wx, wy - 5); octx.rotate(rel);
+      octx.strokeStyle = "#f2c230"; octx.fillStyle = "#f2c230"; octx.lineWidth = 3;
+      octx.beginPath(); octx.moveTo(-9, 0); octx.lineTo(5, 0); octx.stroke();
+      octx.beginPath(); octx.moveTo(11, 0); octx.lineTo(3, -6); octx.lineTo(3, 6); octx.closePath(); octx.fill();
+      octx.restore();
+      octx.fillStyle = "#e9f0e6"; octx.fillText(`${wind.mph} MPH`, wx, wy + 17);
+    } else { octx.fillStyle = "#e9f0e6"; octx.fillText("CALM", wx, wy); }
 
-    // distance tag at the landing ring
-    if (phase === "aim" && !club().putter) {
-      const c = carryEst(), tx = (ball.x + Math.cos(aimAng) * c - cam.x) * s + cw / 2, ty = (ball.y + Math.sin(aimAng) * c - cam.y) * s + ch / 2;
-      ctx.font = "700 14px 'Barlow Condensed', 'Arial Narrow', sans-serif";
-      const label = `${Math.round(c)} yd`, w = ctx.measureText(label).width + 10;
-      ctx.fillStyle = "#0f2119c0"; ctx.fillRect(tx + 10, ty - 20, w, 18);
-      ctx.fillStyle = "#f2c230"; ctx.textAlign = "left"; ctx.fillText(label, tx + 15, ty - 11);
-    }
+    // distance readout
+    octx.font = "700 15px 'Barlow Condensed', 'Arial Narrow', sans-serif";
+    const info = `${LIE_NAME[lie]} · ${fmtDist(distPin())} to pin`;
+    const iw = octx.measureText(info).width + 18;
+    octx.fillStyle = "#0f2119c0"; octx.fillRect(cw - iw - 10, ch - 34, iw, 24);
+    octx.fillStyle = "#e9f0e6"; octx.textAlign = "right"; octx.fillText(info, cw - 19, ch - 22);
 
-    // toast
     if (toast && toast.t > 0) {
-      ctx.globalAlpha = Math.min(1, toast.t / 30);
-      ctx.font = "700 18px 'Barlow Condensed', 'Arial Narrow', sans-serif";
-      const tw = Math.min(ctx.measureText(toast.text).width + 28, cw - 100);
-      ctx.fillStyle = "#0f2119d8"; ctx.fillRect(cw / 2 - tw / 2 - 30, 14, tw, 32);
-      ctx.fillStyle = "#e9f0e6"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(toast.text, cw / 2 - 30, 30, tw - 16);
-      ctx.globalAlpha = 1; toast.t--;
+      octx.globalAlpha = Math.min(1, toast.t / 30);
+      octx.font = "700 17px 'Barlow Condensed', 'Arial Narrow', sans-serif";
+      const left = mx + mw + 10, right = cw - 82, maxW = right - left - 16;
+      const lines = [];
+      for (const word of toast.text.split(" ")) {
+        const cur = lines.length ? lines[lines.length - 1] + " " + word : word;
+        if (lines.length && octx.measureText(cur).width <= maxW) lines[lines.length - 1] = cur; else lines.push(word);
+      }
+      const tw = Math.min(maxW, Math.max(...lines.map((l) => octx.measureText(l).width))) + 16, th = lines.length * 20 + 10;
+      const tx = (left + right) / 2;
+      octx.fillStyle = "#0f2119e0"; octx.fillRect(tx - tw / 2, 12, tw, th);
+      octx.fillStyle = "#e9f0e6"; octx.textAlign = "center";
+      lines.forEach((l, i) => octx.fillText(l, tx, 27 + i * 20, maxW));
+      octx.globalAlpha = 1; toast.t--;
     }
   }
+
+  // aiming: drag sideways on the view, or tap the minimap
+  function ovPoint(e) { const r = ov.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  const inMini = (p) => mini && p.x >= mini.mx && p.x <= mini.mx + mini.mw && p.y >= mini.my && p.y <= mini.my + mini.mh;
+  function aimFromMini(p) {
+    const x = mini.xc - (p.y - mini.cy) / mini.s, y = mini.yc + (p.x - mini.cx) / mini.s;
+    if (hyp(x - ball.x, y - ball.y) > 0.5) aimAng = Math.atan2(y - ball.y, x - ball.x);
+  }
+  ov.addEventListener("pointerdown", (e) => {
+    if (phase !== "aim") return;
+    const p = ovPoint(e);
+    dragging = { x: p.x, mini: inMini(p) };
+    ov.setPointerCapture(e.pointerId);
+    if (dragging.mini) aimFromMini(p);
+  });
+  ov.addEventListener("pointermove", (e) => {
+    if (!dragging || phase !== "aim") return;
+    const p = ovPoint(e);
+    if (dragging.mini) aimFromMini(p);
+    else { aimAng += (p.x - dragging.x) * (club().putter ? 0.0015 : 0.004); dragging.x = p.x; }
+  });
+  ov.addEventListener("pointerup", () => { dragging = false; });
+  ov.addEventListener("pointercancel", () => { dragging = false; });
 
   // ---------- loop ----------
   let last = performance.now();
@@ -930,26 +1123,27 @@ td.over { color: var(--over); font-weight: 700; }
       shot.t = Math.min(shot.endT, shot.t + dt / shot.dur);
       const p = shot.P(shot.t);
       ball = { x: p.x, y: p.y, z: 4 * shot.apex * shot.t * (1 - shot.t) };
-      trail.push({ x: p.x, y: p.y });
+      trail.push({ x: p.x, y: p.y, z: ball.z });
       if (shot.t >= shot.endT) landShot();
     } else if (phase === "roll") {
       stepRoll();
+      if (tick % 2 === 0) trail.push({ x: ball.x, y: ball.y, z: 0 });
     }
-    if (!camFrozen && phase === "aim") camT = aimCam();
-    const k = 0.08;
-    cam.x += (camT.x - cam.x) * k; cam.y += (camT.y - cam.y) * k;
-    cam.s *= Math.pow(camT.s / cam.s, k);
-    draw();
+    updateCamera(dt);
+    updateScene(dt);
+    if (renderer) renderer.render(scene, camera);
+    drawOverlay();
     drawPad();
     requestAnimationFrame(loop);
   }
 
   function resize() {
-    const r = canvas.getBoundingClientRect();
+    const r = ov.getBoundingClientRect();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     cw = r.width || 800; ch = r.height || 500;
-    canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
-    if (H && phase === "aim") { camT = aimCam(); }
+    ov.width = Math.round(cw * dpr); ov.height = Math.round(ch * dpr);
+    if (renderer) { renderer.setPixelRatio(dpr); renderer.setSize(cw, ch, false); }
+    camera.aspect = cw / ch; camera.updateProjectionMatrix();
   }
 
   function start(saved) {
