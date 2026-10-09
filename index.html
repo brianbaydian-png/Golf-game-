@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One+SC&family=Barlow:wght@400;600&family=Barlow+Condensed:wght@500;700&display=swap">
 <style>
-/* Layout: one column. Clubhouse header with round HUD, the course canvas, the shot console (bag + swing meter), then the paper scorecard. Single dark "evening clubhouse" look. */
+/* Layout: one column. Clubhouse header with round HUD, the course canvas, the shot console (bag + swing pad), then the paper scorecard. Single dark "evening clubhouse" look. */
 :root {
   --bg: #0f2119;
   --raise: #163024;
@@ -53,16 +53,12 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: 
 .club[aria-pressed="true"] small { color: #3d3a1c; }
 .club:disabled { opacity: 0.45; cursor: default; }
 .club:focus-visible, .btn:focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
-.swingrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.meterbox { flex: 1 1 280px; min-width: 0; display: grid; gap: 4px; }
-.meterlabel { font-size: 0.85rem; color: var(--muted); }
-.meter { position: relative; height: 26px; border-radius: 5px; background: linear-gradient(90deg, #1d4a33 0 12%, #20392c 12% 92%, #5a2a20 92% 100%); overflow: hidden; border: 1px solid var(--line); }
-.meter .fill { position: absolute; top: 0; bottom: 0; left: 12%; width: 0; background: linear-gradient(90deg, #2e8b57, #f2c230 85%, #c4472f); opacity: 0.9; }
-.meter .mark { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; opacity: 0.85; }
-.meter .snap { left: 12%; background: var(--flag); width: 3px; }
-.meter .full { left: 92%; }
-.meter .cursor { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #fff; box-shadow: 0 0 6px #fff; left: 12%; }
-.meter .setp { position: absolute; top: 0; bottom: 0; width: 3px; background: #c4472f; display: none; }
+.swingrow { display: grid; gap: 6px; }
+.meterlabel { font-size: 0.9rem; line-height: 1.35; color: var(--muted); height: 2.7em; overflow: hidden; display: flex; align-items: flex-end; }
+.meterlabel.good { color: var(--flag); }
+.pad { position: relative; height: 230px; border-radius: 8px; border: 1px solid var(--line); background: #0f2119; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.pad.off { opacity: 0.55; cursor: default; }
+.pad canvas { cursor: inherit; }
 .btn { font: 600 0.9rem var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
 .btn.primary { background: var(--flag); color: #1b1a10; border-color: var(--flag); padding: 12px 26px; font-size: 1.05rem; font-family: var(--display); font-weight: 400; letter-spacing: 0.03em; }
 .btn:disabled { opacity: 0.5; cursor: default; }
@@ -113,21 +109,12 @@ td.over { color: var(--over); font-weight: 700; }
     </div>
     <div class="bag" id="bag" role="group" aria-label="Clubs"></div>
     <div class="swingrow">
-      <div class="meterbox">
-        <div class="meterlabel" id="mLabel">Press Swing to start your backswing.</div>
-        <div class="meter" aria-hidden="true">
-          <div class="fill" id="mFill"></div>
-          <div class="mark snap"></div>
-          <div class="mark full"></div>
-          <div class="setp" id="mSet"></div>
-          <div class="cursor" id="mCursor"></div>
-        </div>
-      </div>
-      <button class="btn primary" id="btnSwing" type="button">Swing</button>
+      <div class="meterlabel" id="mLabel">Put your finger on the ball, pull down, then swipe straight up.</div>
+      <div class="pad" id="padWrap"><canvas id="pad" aria-label="Swing pad: drag down for backswing, swipe up to hit"></canvas></div>
     </div>
   </section>
 
-  <p class="hint">Tap or drag on the course to aim. Pick a club from the bag (your caddie suggests one). Swing takes three taps: start, set power at the white 100% line, then stop the cursor on the yellow line for a straight shot. Early means a slice, late means a hook. Keyboard: <kbd>Space</kbd> swing, <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
+  <p class="hint">Tap or drag on the course to aim. Pick a club from the bag (your caddie suggests one). To swing, put your finger on the ball in the swing pad and pull down for your backswing. The further you pull, the harder you hit; past the 100% line is an overswing that adds distance but is harder to control. Then swipe straight up through the ball. If your upswipe drifts right the ball slices, and if it drifts left it hooks. A slow upswipe loses power. Keyboard: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
 
   <section class="card">
     <h3>Scorecard</h3>
@@ -350,6 +337,8 @@ td.over { color: var(--over); font-weight: 700; }
     wind = { x: Math.cos(a) * mph, y: Math.sin(a) * mph, mph };
     $("overlay").hidden = true;
     camFrozen = false;
+    lastSwing = null;
+    setSwingMsg(DEFAULT_MSG);
     prepareShot();
     cam = { ...camT };
     toast = { text: `Hole ${i + 1} · ${H.name} · Par ${H.par} · ${H.length} yd`, t: 200 };
@@ -366,15 +355,136 @@ td.over { color: var(--over); font-weight: 700; }
     ui();
   }
 
-  function swingPress() {
-    if (phase === "aim") {
-      phase = "swing"; meter = { stage: 0, m: 0, power: 0 }; sfx.tick();
-    } else if (phase === "swing" && meter.stage === 0) {
-      meter.power = Math.max(0.03, meter.m / 100); meter.stage = 1; sfx.tick();
-    } else if (phase === "swing" && meter.stage === 1) {
-      fire(meter.m);
+  // ---------- swipe swing ----------
+  // Pull down from the ball for the backswing (depth = power), then swipe up through it.
+  // Sideways drift on the upswipe curves the ball: drift right slices, drift left hooks.
+  const pad = $("pad"), padWrap = $("padWrap"), pctx = pad.getContext("2d");
+  const DEFAULT_MSG = "Put your finger on the ball, pull down, then swipe straight up.";
+  let pw = 0, ph = 0, swipe = null, lastSwing = null;
+  const padBall = () => ({ x: pw / 2, y: ph * 0.2 });
+  const fullDepth = () => ph * 0.6;
+  const STRAIGHT = 2.2; // degrees of upswipe drift that still counts as a pure strike
+
+  function setSwingMsg(text, good) {
+    $("mLabel").textContent = text;
+    $("mLabel").classList.toggle("good", !!good);
+  }
+  function padPoint(e) {
+    const r = pad.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() };
+  }
+  pad.addEventListener("pointerdown", (e) => {
+    if (phase !== "aim") return;
+    const p = padPoint(e), b = padBall();
+    if (hyp(p.x - b.x, p.y - b.y) > 50) return setSwingMsg("Start your swipe on the ball.");
+    pad.setPointerCapture(e.pointerId);
+    swipe = { start: p, pts: [p], depth: 0, bottom: p, stage: "back" };
+    lastSwing = null;
+    phase = "swing"; sfx.tick(); ui();
+    setSwingMsg("Backswing 0%");
+  });
+  pad.addEventListener("pointermove", (e) => {
+    if (!swipe) return;
+    const p = padPoint(e);
+    swipe.pts.push(p);
+    const depth = p.y - swipe.start.y;
+    if (swipe.stage === "back") {
+      if (depth > swipe.depth) { swipe.depth = depth; swipe.bottom = p; }
+      else if (swipe.depth > 15 && swipe.depth - depth > 12) swipe.stage = "through";
+      const pctPow = Math.round(Math.min(1.1, Math.max(0, swipe.depth) / fullDepth()) * 100);
+      if (swipe.stage === "back") setSwingMsg(`Backswing ${pctPow}%${pctPow > 100 ? " (overswing)" : ""}`);
     }
+    if (swipe.stage === "through" && p.y <= swipe.start.y) strike(p);
+  });
+  pad.addEventListener("pointerup", (e) => {
+    if (!swipe) return;
+    const p = padPoint(e);
+    if (swipe.stage === "through" && swipe.bottom.y - p.y >= swipe.depth * 0.6) return strike(p);
+    cancelSwing(swipe.stage === "back"
+      ? "No swing. After pulling back, swipe up through the ball to hit it."
+      : "No swing. Swipe all the way up through the ball.");
+  });
+  pad.addEventListener("pointercancel", () => { if (swipe) cancelSwing(DEFAULT_MSG); });
+
+  function cancelSwing(msg) {
+    swipe = null;
+    phase = "aim";
+    setSwingMsg(msg);
     ui();
+  }
+
+  function strike(p) {
+    const s = swipe, b = s.bottom;
+    swipe = null;
+    const angle = Math.atan2(p.x - b.x, Math.max(1, b.y - p.y)) * 180 / Math.PI;
+    const raw = Math.min(1.1, s.depth / fullDepth());
+    const slow = p.t - b.t > 650;
+    meter.power = Math.max(0.03, raw * (slow ? 0.85 : 1));
+    // fire() treats |acc| <= 2 as dead straight
+    const acc = Math.abs(angle) <= STRAIGHT ? 0 : Math.max(-20, Math.min(20, angle * 0.9));
+    lastSwing = { pts: s.pts, start: s.start };
+    const [r, l] = club().putter ? ["Pushed right", "Pulled left"] : ["Slice", "Hook"];
+    const deg = Math.round(Math.abs(angle));
+    const shape = acc === 0 ? "Pure strike" : angle > 0 ? `${r} ${deg}°` : `${l} ${deg}°`;
+    setSwingMsg(`${Math.round(meter.power * 100)}% power · ${shape}${raw > 1 ? " · overswing" : ""}${slow ? " · slow tempo" : ""}`, acc === 0);
+    fire(acc);
+  }
+
+  function drawPad() {
+    const r = pad.getBoundingClientRect();
+    if (Math.round(r.width) !== pw || Math.round(r.height) !== ph) {
+      pw = Math.round(r.width); ph = Math.round(r.height);
+      pad.width = pw * dpr; pad.height = ph * dpr;
+      pad.style.width = pw + "px"; pad.style.height = ph + "px";
+    }
+    padWrap.classList.toggle("off", phase !== "aim" && phase !== "swing");
+    const c = pctx, b = padBall(), full = fullDepth();
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = "#0f2119"; c.fillRect(0, 0, pw, ph);
+
+    // power scale
+    c.fillStyle = "#c4472f33"; c.fillRect(0, b.y + full, pw, full * 0.1);
+    c.font = "600 12px 'Barlow Condensed', 'Arial Narrow', sans-serif"; c.textBaseline = "middle"; c.textAlign = "left";
+    for (const [f, label] of [[0.25, "25%"], [0.5, "50%"], [0.75, "75%"], [1, "100%"]]) {
+      const y = b.y + full * f;
+      c.strokeStyle = f === 1 ? "#ffffffaa" : "#ffffff22"; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(36, y); c.lineTo(pw - 40, y); c.stroke();
+      c.fillStyle = f === 1 ? "#e9f0e6" : "#9db5a4"; c.fillText(label, 6, y);
+    }
+    c.fillStyle = "#c4472f"; c.textAlign = "right"; c.fillText("OVERSWING", pw - 44, b.y + full * 1.05); c.textAlign = "left";
+
+    // straight swing path
+    c.strokeStyle = "#f2c23040"; c.lineWidth = 14; c.lineCap = "round";
+    c.beginPath(); c.moveTo(b.x, b.y - 30); c.lineTo(b.x, b.y + full * 1.1); c.stroke();
+    c.setLineDash([4, 6]); c.strokeStyle = "#f2c230aa"; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(b.x, 4); c.lineTo(b.x, ph - 4); c.stroke(); c.setLineDash([]);
+
+    // the ball
+    c.fillStyle = "#ffffff"; c.beginPath(); c.arc(b.x, b.y, 11, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = "#00000040"; c.lineWidth = 1; c.stroke();
+    if (phase === "aim" && !swipe) {
+      const pulse = 14 + (Math.sin(tick / 12) + 1) * 4;
+      c.strokeStyle = "#f2c23088"; c.lineWidth = 2; c.beginPath(); c.arc(b.x, b.y, pulse, 0, Math.PI * 2); c.stroke();
+      c.fillStyle = "#9db5a4"; c.textAlign = "center"; c.fillText("pull down, then swipe up", b.x, b.y + full * 1.1 + 14);
+    }
+
+    // finger trail
+    const pts = swipe ? swipe.pts : lastSwing ? lastSwing.pts : null;
+    if (pts && pts.length > 1) {
+      c.globalAlpha = swipe ? 1 : 0.5;
+      c.lineWidth = 5; c.lineJoin = "round";
+      for (let i = 1; i < pts.length; i++) {
+        const up = pts[i].y < pts[i - 1].y;
+        c.strokeStyle = up ? "#f2c230" : "#e9f0e6";
+        c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke();
+      }
+      c.globalAlpha = 1;
+    }
+
+    // power gauge
+    const gx = pw - 26, depth = swipe ? Math.max(0, swipe.depth) : 0, f = Math.min(1.1, depth / full);
+    c.fillStyle = "#ffffff14"; c.fillRect(gx, b.y, 14, full * 1.1);
+    c.fillStyle = f > 1 ? "#c4472f" : "#2e8b57"; c.fillRect(gx, b.y, 14, full * f);
   }
 
   function fire(acc) {
@@ -571,23 +681,6 @@ td.over { color: var(--over); font-weight: 700; }
     $("iSlope").textContent = sm < 0.2 ? "flat" : `${sm.toFixed(1)}% slope`;
     const busy = phase !== "aim";
     [...bag.children].forEach((b, i) => { b.setAttribute("aria-pressed", String(i === clubIdx)); b.disabled = busy; });
-    $("btnSwing").disabled = !(phase === "aim" || phase === "swing");
-    $("btnSwing").textContent = phase === "swing" ? (meter.stage === 0 ? "Set power" : "Hit!") : "Swing";
-    $("mLabel").textContent =
-      phase === "aim" ? "Press Swing to start your backswing." :
-      phase === "swing" && meter.stage === 0 ? "Tap again to set power. The white line is 100%." :
-      phase === "swing" ? "Tap when the cursor reaches the yellow line." :
-      phase === "flight" || phase === "roll" ? "Ball in play..." : "";
-  }
-
-  const pct = (m) => ((m + 15) / 125) * 100;
-  function drawMeter() {
-    $("mCursor").style.left = pct(phase === "swing" ? meter.m : 0) + "%";
-    const p = phase === "swing" ? (meter.stage === 0 ? meter.m : meter.power * 100) : 0;
-    $("mFill").style.width = Math.max(0, pct(p) - pct(0)) + "%";
-    const set = $("mSet");
-    set.style.display = phase === "swing" && meter.stage === 1 ? "block" : "none";
-    set.style.left = pct(meter.power * 100) + "%";
   }
 
   function renderCard() {
@@ -613,7 +706,6 @@ td.over { color: var(--over); font-weight: 700; }
     } catch (e) {}
   }
 
-  $("btnSwing").addEventListener("click", swingPress);
   $("btnSound").addEventListener("click", () => {
     soundOn = !soundOn;
     try { localStorage.setItem("pl-sound", soundOn ? "on" : "off"); } catch (e) {}
@@ -625,10 +717,7 @@ td.over { color: var(--over); font-weight: 700; }
   }
 
   window.addEventListener("keydown", (e) => {
-    if (e.key === " ") {
-      if (!$("overlay").hidden) return;
-      e.preventDefault(); swingPress();
-    } else if (phase === "aim" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    if (phase === "aim" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
       e.preventDefault();
       aimAng += (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 2 : 0.5) * Math.PI / 180;
     } else if (phase === "aim" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
@@ -648,7 +737,6 @@ td.over { color: var(--over); font-weight: 700; }
     if (hyp(p.x - ball.x, p.y - ball.y) > 0.3) aimAng = Math.atan2(p.y - ball.y, p.x - ball.x);
   }
   canvas.addEventListener("pointerdown", (e) => {
-    if (phase === "swing") return swingPress();
     if (phase !== "aim") return;
     dragging = true; canvas.setPointerCapture(e.pointerId); aimAt(e);
   });
@@ -838,15 +926,7 @@ td.over { color: var(--over); font-weight: 700; }
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     tick++;
-    if (phase === "swing") {
-      if (meter.stage === 0) {
-        meter.m += 95 * dt;
-        if (meter.m >= 110) { meter.m = 110; meter.power = 1.1; meter.stage = 1; ui(); }
-      } else {
-        meter.m -= 150 * dt;
-        if (meter.m <= -15) fire(-15);
-      }
-    } else if (phase === "flight") {
+    if (phase === "flight") {
       shot.t = Math.min(shot.endT, shot.t + dt / shot.dur);
       const p = shot.P(shot.t);
       ball = { x: p.x, y: p.y, z: 4 * shot.apex * shot.t * (1 - shot.t) };
@@ -860,7 +940,7 @@ td.over { color: var(--over); font-weight: 700; }
     cam.x += (camT.x - cam.x) * k; cam.y += (camT.y - cam.y) * k;
     cam.s *= Math.pow(camT.s / cam.s, k);
     draw();
-    drawMeter();
+    drawPad();
     requestAnimationFrame(loop);
   }
 
