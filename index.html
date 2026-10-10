@@ -355,7 +355,7 @@ td.over { color: var(--over); font-weight: 700; }
     clubIdx = autoClub();
     autoAim();
     phase = "aim"; meter = { stage: 0, m: 0, power: 0 }; ball.z = 0;
-    pose.theta = pose.target = 0;
+    pose.theta = pose.target = pose.yaw = pose.yawTarget = 0;
     ui();
   }
 
@@ -422,10 +422,17 @@ td.over { color: var(--over); font-weight: 700; }
       if (depth > swipe.depth) { swipe.depth = depth; swipe.bottom = p; }
       else if (swipe.depth > 15 && swipe.depth - depth > 12) { swipe.stage = "through"; swipe.upT = p.t; }
       const ratio = Math.min(1.1, Math.max(0, swipe.depth) / fullDepth());
-      pose.target = Math.min(ratio, 1.1) * (club().putter ? 0.7 : 2.4);
+      pose.target = Math.min(ratio, 1.1) * (club().putter ? 0.7 : 1.25);
+      pose.yawTarget = Math.max(-0.6, Math.min(0.6, (p.x - swipe.start.x) / fullDepth() * 1.1));
       if (swipe.stage === "back") setSwingMsg(`Backswing ${Math.round(ratio * 100)}%${ratio > 1.005 ? " (overswing)" : ""}`);
     }
-    if (swipe.stage === "through" && p.y <= swipe.start.y) strike(p);
+    if (swipe.stage === "through") {
+      // on the way down the club follows the line from the top of your swing to your finger
+      const ang = Math.atan2(p.x - swipe.bottom.x, Math.max(1, swipe.bottom.y - p.y));
+      pose.yawTarget = Math.max(-0.6, Math.min(0.6, ang * 1.6));
+      pose.target = Math.max(0, (p.y - swipe.start.y) / fullDepth()) * (club().putter ? 0.7 : 1.25);
+      if (p.y <= swipe.start.y) strike(p);
+    }
   }
   function endSwing(p) {
     if (swipe.stage === "through" && swipe.bottom.y - p.y >= swipe.depth * 0.6) return strike(p);
@@ -436,7 +443,7 @@ td.over { color: var(--over); font-weight: 700; }
   function cancelSwing(msg) {
     swipe = null;
     phase = "aim";
-    pose.target = 0;
+    pose.target = 0; pose.yawTarget = 0;
     setSwingMsg(msg);
     ui();
   }
@@ -452,6 +459,7 @@ td.over { color: var(--over); font-weight: 700; }
     const acc = Math.abs(angle) <= STRAIGHT ? 0 : Math.max(-20, Math.min(20, angle * 0.9));
     lastSwing = { pts: s.pts, t: performance.now() };
     pose.target = club().putter ? -0.6 : -2.2;
+    pose.yawTarget = Math.max(-0.6, Math.min(0.6, angle * Math.PI / 180 * 1.6));
     const [r, l] = club().putter ? ["Pushed right", "Pulled left"] : ["Slice", "Hook"];
     const deg = Math.round(Math.abs(angle));
     const shape = acc === 0 ? "Pure strike" : angle > 0 ? `${r} ${deg}°` : `${l} ${deg}°`;
@@ -726,57 +734,145 @@ td.over { color: var(--over); font-weight: 700; }
   // ---------- 3D scene ----------
   // Course coordinates (x along the hole, y left/right, z height) map to three.js as (x, z, y).
   const V = (x, y, z = 0) => new THREE.Vector3(x, z, y);
+  const C = (hex) => new THREE.Color(hex).convertSRGBToLinear();
   let renderer = null;
   try { renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, logarithmicDepthBuffer: true }); } catch (e) { renderer = null; }
+  if (renderer) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, 1.6, 0.02, 4000);
   const camLook = new THREE.Vector3();
   let introT = 0, flyDir = { x: 1, y: 0 }, holeGroup = null, greenMesh = null;
+  const srgbTex = (canvas) => { const t = new THREE.CanvasTexture(canvas); t.encoding = THREE.sRGBEncoding; return t; };
 
-  {
-    const sky = document.createElement("canvas"); sky.width = 2; sky.height = 256;
-    const g = sky.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
-    gr.addColorStop(0, "#4f93d0"); gr.addColorStop(0.6, "#a8d2ee"); gr.addColorStop(1, "#d8ecea");
-    g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
-    scene.background = new THREE.CanvasTexture(sky);
-  }
-  scene.fog = new THREE.Fog(0xcde5e6, 240, 950);
-  scene.add(new THREE.HemisphereLight(0xe2f2ff, 0x46703a, 0.85));
-  const sunLight = new THREE.DirectionalLight(0xfff2d8, 0.8);
-  sunLight.position.set(-120, 200, -60); scene.add(sunLight);
-  const outerGround = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshBasicMaterial({ color: 0x2c5f2e }));
+  // sky dome with soft clouds; it follows the camera so it always sits at the horizon
+  const HORIZON = "#d3e7ec";
+  const skyDome = (() => {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 512;
+    const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, "#2f78c4"); gr.addColorStop(0.55, "#77b4e4"); gr.addColorStop(1, HORIZON);
+    g.fillStyle = gr; g.fillRect(0, 0, 1024, 256);
+    g.fillStyle = HORIZON; g.fillRect(0, 256, 1024, 256);
+    const rand = rng(4242);
+    for (let i = 0; i < 70; i++) {
+      const x = rand() * 1024, y = 120 + rand() * 120, w = 30 + rand() * 90, h = w * (0.25 + rand() * 0.2);
+      for (const dx of [-1024, 0, 1024]) { // wrap around the seam
+        const rg = g.createRadialGradient(x + dx, y, 0, x + dx, y, w);
+        rg.addColorStop(0, `rgba(255,255,255,${0.5 + rand() * 0.35})`); rg.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = rg; g.save(); g.translate(x + dx, y); g.scale(1, h / w); g.translate(-(x + dx), -y);
+        g.beginPath(); g.arc(x + dx, y, w, 0, Math.PI * 2); g.fill(); g.restore();
+      }
+    }
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1800, 32, 16), new THREE.MeshBasicMaterial({ map: srgbTex(c), side: THREE.BackSide, fog: false, depthWrite: false }));
+    m.renderOrder = -1;
+    return m;
+  })();
+  scene.add(skyDome);
+  scene.background = C(HORIZON);
+  scene.fog = new THREE.Fog(C(HORIZON), 260, 1300);
+  scene.add(new THREE.HemisphereLight(C(0xdcecff), C(0x3e6233), 0.62));
+  const sunLight = new THREE.DirectionalLight(C(0xfff1d6), 0.95);
+  const SUN_DIR = new THREE.Vector3(-0.45, 0.8, -0.4).normalize();
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  Object.assign(sunLight.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 200 });
+  sunLight.shadow.bias = -0.0004;
+  sunLight.shadow.normalBias = 0.02;
+  scene.add(sunLight, sunLight.target);
+  const outerGround = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({ color: C(0x2c5f2e) }));
   outerGround.rotation.x = -Math.PI / 2; outerGround.position.y = -0.6; scene.add(outerGround);
 
-  const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
-  const facet = (color, extra = {}) => new THREE.MeshPhongMaterial({ color, flatShading: true, shininess: 0, ...extra });
-  const trunkGeo = new THREE.CylinderGeometry(0.25, 0.4, 1, 6);
-  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
-  const trunkMat = facet(0x6a4a33);
-  const leafMats = [0x2f6b2f, 0x295c2b, 0x3b7a35, 0x24552a].map((c) => facet(c));
-  function addTree(group, x, y, r, h, k) {
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-    trunk.scale.set(r * 0.25, h * 0.45, r * 0.25); trunk.position.set(x, h * 0.225, y);
-    const top = new THREE.Mesh(canopyGeo, leafMats[k % leafMats.length]);
-    top.scale.set(r, h * 0.38, r); top.position.set(x, h * 0.62, y);
-    top.rotation.y = k;
-    group.add(trunk, top);
+  const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color: C(color), ...extra });
+  const phong = (color, extra = {}) => new THREE.MeshPhongMaterial({ color: C(color), ...extra });
+  const facet = (color, extra = {}) => new THREE.MeshPhongMaterial({ color: C(color), flatShading: true, shininess: 0, ...extra });
+
+  // fine grass grain, tiled across the ground as an ambient-occlusion map
+  const grainTex = (() => {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d"), img = g.createImageData(256, 256), rand = rng(77);
+    for (let i = 0; i < 256 * 256; i++) { const v = 150 + rand() * 105; img.data.set([v, v, v, 255], i * 4); }
+    g.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  })();
+  function addGrain(geo, fu, fv) {
+    const uv = geo.attributes.uv.array, uv2 = new Float32Array(uv.length);
+    for (let i = 0; i < uv.length; i += 2) { uv2[i] = uv[i] * fu; uv2[i + 1] = uv[i + 1] * fv; }
+    geo.setAttribute("uv2", new THREE.BufferAttribute(uv2, 2));
+  }
+
+  // trees: broadleaf (trunk + lumpy canopy) and pines (stacked cones), drawn as instanced meshes
+  function lumpy(detail, seed) {
+    const geo = new THREE.IcosahedronGeometry(1, detail), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const n = 0.86 + 0.24 * (0.5 + 0.5 * Math.sin(x * 7.1 + seed) * Math.cos(y * 5.3 - seed) * Math.sin(z * 6.7 + seed * 2));
+      p.setXYZ(i, x * n, y * n, z * n);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.36, 1, 7);
+  const blobGeo = lumpy(1, 1.7);
+  const coneGeo = new THREE.ConeGeometry(1, 1, 8, 1);
+  const trunkMat = lambert(0x5a4030), leafMat = facet(0xffffff), pineMat = facet(0xffffff);
+  const LEAF = [0x3f7a33, 0x356d2e, 0x4a8638, 0x2f6229, 0x5a8c3a].map(C), PINE = [0x24502c, 0x2b5a31, 0x1f4627].map(C);
+  function buildTrees(list) { // list: [x, y, r, h]
+    const rand = rng(31 + st.hole), parts = { trunk: [], blob: [], cone: [] };
+    const m = new THREE.Object3D();
+    const push = (kind, x, y, z, sx, sy, sz, color) => {
+      m.position.set(x, z, y); m.scale.set(sx, sy, sz); m.rotation.set(0, rand() * 6.28, 0); m.updateMatrix();
+      parts[kind].push([m.matrix.clone(), color]);
+    };
+    for (const [x, y, r, h] of list) {
+      if (rand() < 0.35) { // pine
+        push("trunk", x, y, h * 0.15, r * 0.22, h * 0.3, r * 0.22, C(0x4a3526));
+        const col = PINE[Math.floor(rand() * PINE.length)];
+        push("cone", x, y, h * 0.42, r * 0.95, h * 0.55, r * 0.95, col);
+        push("cone", x, y, h * 0.68, r * 0.7, h * 0.45, r * 0.7, col);
+        push("cone", x, y, h * 0.88, r * 0.42, h * 0.3, r * 0.42, col);
+      } else { // broadleaf
+        push("trunk", x, y, h * 0.22, r * 0.25, h * 0.45, r * 0.25, C(0x5a4030));
+        const col = LEAF[Math.floor(rand() * LEAF.length)];
+        push("blob", x, y, h * 0.62, r, h * 0.36, r, col);
+        for (let k = 0; k < 3; k++) {
+          const a = rand() * 6.28, d = r * 0.45;
+          const shade = col.clone().multiplyScalar(0.85 + rand() * 0.3);
+          push("blob", x + Math.cos(a) * d, y + Math.sin(a) * d, h * (0.55 + rand() * 0.2), r * 0.62, h * 0.26, r * 0.62, shade);
+        }
+      }
+    }
+    const group = new THREE.Group();
+    for (const [kind, geo, mat] of [["trunk", trunkGeo, trunkMat], ["blob", blobGeo, leafMat], ["cone", coneGeo, pineMat]]) {
+      const arr = parts[kind];
+      if (!arr.length) continue;
+      const im = new THREE.InstancedMesh(geo, mat, arr.length);
+      arr.forEach(([mx, col], i) => { im.setMatrixAt(i, mx); im.setColorAt(i, col); });
+      im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      group.add(im);
+    }
+    return group;
   }
 
   // flagstick
   const pinGroup = new THREE.Group();
   const flagMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55), lambert(0xf2c230, { side: THREE.DoubleSide }));
   {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.6, 6), lambert(0xf5f5f5));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.6, 8), phong(0xf5f5f5, { shininess: 60 }));
     pole.position.y = 1.3;
     flagMesh.position.set(0.45, 2.3, 0);
     pinGroup.add(pole, flagMesh);
   }
   scene.add(pinGroup);
 
-  // ball, its shadow, the target line and the flight tracer
-  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), lambert(0xffffff, { emissive: 0x444444 }));
-  const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
-  shadowMesh.rotation.x = -Math.PI / 2;
+  // ball, the target line and the flight tracer
+  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), phong(0xffffff, { shininess: 70, specular: 0x666666, emissive: C(0x2a2a2a) }));
+  ballMesh.castShadow = true;
   const PREV_N = 2, TRAIL_N = 700;
   const lineOf = (n, mat) => {
     const geo = new THREE.BufferGeometry();
@@ -792,32 +888,90 @@ td.over { color: var(--over); font-weight: 700; }
     for (let i = 0; i < TRAIL_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     tracerGeo.setIndex(idx);
   }
-  const tracer = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color: 0xff5a36, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+  const tracer = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color: C(0xff5a36), transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, fog: false, toneMapped: false }));
   tracer.frustumCulled = false;
-  scene.add(ballMesh, shadowMesh, prevLine, tracer);
+  const teePeg = new THREE.Group();
+  {
+    const wood = lambert(0xf4f1ea);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.003, 0.05, 8), wood); stem.position.y = 0.012;
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.006, 0.01, 10), wood); cup.position.y = 0.04;
+    teePeg.add(stem, cup);
+  }
+  const TEE_UP = 0.045;
+  scene.add(ballMesh, prevLine, tracer, teePeg);
 
-  // your club, seen from just behind the ball: the head rests behind the ball and the shaft
-  // rises toward your hands on the left. It swings back and through on an inclined plane.
+  // your club, seen from just behind the ball. The shaft rises from the heel of the head toward
+  // your hands on the left; it swings back and through on an inclined plane, and yaws left or
+  // right to follow your finger.
   const clubRig = new THREE.Group(), clubPivot = new THREE.Group();
-  const GRIP = new THREE.Vector3(-0.05, 0.92, -0.72), HEAD = new THREE.Vector3(-0.07, 0.035, 0);
+  const GRIP = new THREE.Vector3(-0.05, 0.92, -0.72), HEAD = new THREE.Vector3(-0.03, 0.03, -0.055);
   const shaftVec = HEAD.clone().sub(GRIP);
   const swingAxis = new THREE.Vector3(1, 0, 0).cross(shaftVec).normalize();
+  const shaftMat = phong(0xd8dee3, { shininess: 90 });
+  let headMesh = null, headFor = null;
   {
     const L = shaftVec.length();
-    const cyl = (r1, r2, h, m) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m);
     const stick = new THREE.Group();
     stick.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), shaftVec.clone().normalize());
-    const grip = cyl(0.022, 0.017, 0.28, facet(0x1c1c1c)); grip.position.y = 0.02;
-    const shaft = cyl(0.01, 0.007, L - 0.1, new THREE.MeshPhongMaterial({ color: 0xd8dee3, shininess: 80 })); shaft.position.y = -(L - 0.1) / 2 - 0.1;
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.017, 0.28, 10), facet(0x1c1c1c));
+    grip.position.y = 0.02;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.006, L - 0.1, 8), shaftMat);
+    shaft.position.y = -(L - 0.1) / 2 - 0.1;
     stick.add(grip, shaft);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.15), new THREE.MeshPhongMaterial({ color: 0x9aa3ab, shininess: 90 }));
-    head.position.copy(shaftVec);
+    stick.traverse((o) => { o.castShadow = true; });
     clubPivot.position.copy(GRIP);
-    clubPivot.add(stick, head);
+    clubPivot.add(stick);
     clubRig.add(clubPivot);
   }
   scene.add(clubRig);
-  const pose = { theta: 0, target: 0 };
+  const pose = { theta: 0, target: 0, yaw: 0, yawTarget: 0 };
+
+  // Club heads, built around the hosel (origin): face toward +x, toe toward +z, sole at y = -0.03.
+  const LOFT = { "4i": 21, "5i": 24, "6i": 27, "7i": 31, "8i": 35, "9i": 40, PW: 45, SW: 56, LW: 60 };
+  function makeHead(c) {
+    const g = new THREE.Group(), box = (w, h, d, mat) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const hosel = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.035, 8), phong(0xc9ced3, { shininess: 100 }));
+    hosel.position.set(-0.006, -0.01, 0.002);
+    if (c.putter) {
+      const blade = box(0.028, 0.026, 0.115, phong(0x2a2d31, { shininess: 60 }));
+      blade.position.set(-0.018, -0.017, 0.06);
+      const line = box(0.03, 0.002, 0.004, lambert(0xffffff)); line.position.set(-0.018, -0.003, 0.06);
+      const face = box(0.002, 0.022, 0.11, phong(0x9aa2aa, { shininess: 90 })); face.position.set(-0.003, -0.017, 0.06);
+      g.add(blade, line, face, hosel);
+    } else if (c.dist >= 200) { // driver and fairway woods: rounded, glossy crowns
+      const f = c.id === "1W" ? 1 : c.id === "3W" ? 0.8 : 0.72;
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), phong(c.id === "1W" ? 0x39414c : 0x46505a, { shininess: 120, specular: 0xaaaaaa }));
+      body.scale.set(0.062 * f, 0.034 * f, 0.064 * f);
+      body.position.set(-0.058 * f, -0.03 + 0.034 * f, 0.058 * f);
+      const face = box(0.004, 0.044 * f, 0.09 * f, phong(0x50565e, { shininess: 80 }));
+      face.position.set(-0.004, -0.03 + 0.034 * f, 0.058 * f);
+      const stripe = box(0.07 * f, 0.002, 0.006, lambert(0xd0d4d8)); stripe.position.set(-0.04 * f, -0.03 + 0.068 * f, 0.058 * f);
+      g.add(body, face, stripe, hosel);
+    } else { // irons and wedges: thin chrome blades with loft
+      const wedge = c.dist < 130, h = wedge ? 0.062 : 0.05 + (190 - c.dist) * 0.00008;
+      const chrome = phong(wedge ? 0xb9bec3 : 0xd6dbe0, { shininess: wedge ? 50 : 130, specular: 0xffffff });
+      const blade = new THREE.Group();
+      const face = box(0.016, h, 0.105, chrome); face.position.set(-0.008, h / 2, 0.055);
+      const back = box(0.012, h * 0.45, 0.096, phong(0x8d949b, { shininess: 60 })); back.position.set(-0.021, h * 0.25, 0.055);
+      const grooves = box(0.0015, h * 0.6, 0.07, lambert(0x6d737a)); grooves.position.set(0.0003, h * 0.42, 0.058);
+      blade.add(face, back, grooves);
+      blade.position.y = -0.03;
+      blade.rotation.z = LOFT[c.id] * Math.PI / 180; // tilt the face back by its loft
+      g.add(blade, hosel);
+    }
+    g.traverse((o) => { o.castShadow = true; });
+    g.position.copy(shaftVec);
+    return g;
+  }
+  function syncClubModel() {
+    const c = club();
+    if (headFor === c.id) return;
+    if (headMesh) clubPivot.remove(headMesh);
+    headMesh = makeHead(c);
+    clubPivot.add(headMesh);
+    headFor = c.id;
+    shaftMat.color.copy(C(c.dist >= 200 ? 0x2b3038 : 0xd8dee3)); // graphite woods, steel irons
+  }
 
   // ---------- course painting ----------
   function ell(g, e, pad = 0) { g.beginPath(); g.ellipse(e[0], e[1], Math.max(0.1, e[2] + pad), Math.max(0.1, e[3] + pad), 0, 0, Math.PI * 2); }
@@ -901,35 +1055,61 @@ td.over { color: var(--over); font-weight: 700; }
     return { canvas: c, R };
   }
 
+  const waterGeo = new THREE.CircleGeometry(1, 48);
+  const waterMat = phong(0x2b6aa3, { shininess: 140, specular: 0xffffff, transparent: true, opacity: 0.9 });
+  const hillGeo = new THREE.IcosahedronGeometry(1, 2), hillMat = lambert(0x355f34);
   function buildScene(h) {
     if (holeGroup) {
       scene.remove(holeGroup);
-      for (const m of holeGroup.userData.own) { m.geometry.dispose(); m.material.map.dispose(); m.material.dispose(); }
+      holeGroup.traverse((o) => {
+        if (o.userData.own) { o.geometry.dispose(); o.material.map.dispose(); o.material.dispose(); }
+        else if (o.isInstancedMesh && o.dispose) o.dispose();
+      });
     }
     holeGroup = new THREE.Group();
     const aniso = renderer ? renderer.capabilities.getMaxAnisotropy() : 1;
     const art = paintCourse(h);
-    const tex = new THREE.CanvasTexture(art.canvas); tex.anisotropy = aniso;
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(art.W, art.H), new THREE.MeshBasicMaterial({ map: tex }));
+    const tex = srgbTex(art.canvas); tex.anisotropy = aniso;
+    const pgeo = new THREE.PlaneGeometry(art.W, art.H);
+    addGrain(pgeo, art.W / 1.4, art.H / 1.4);
+    const plane = new THREE.Mesh(pgeo, new THREE.MeshLambertMaterial({ map: tex, aoMap: grainTex, aoMapIntensity: 1 }));
     plane.rotation.x = -Math.PI / 2; plane.position.set(art.X0 + art.W / 2, 0, art.Y0 + art.H / 2);
     const ga = paintGreen(h);
-    const gtex = new THREE.CanvasTexture(ga.canvas); gtex.anisotropy = aniso;
-    greenMesh = new THREE.Mesh(new THREE.CircleGeometry(ga.R, 64), new THREE.MeshBasicMaterial({ map: gtex, polygonOffset: true, polygonOffsetFactor: -2 }));
+    const gtex = srgbTex(ga.canvas); gtex.anisotropy = aniso;
+    const ggeo = new THREE.CircleGeometry(ga.R, 64);
+    addGrain(ggeo, ga.R * 2 / 0.5, ga.R * 2 / 0.5);
+    greenMesh = new THREE.Mesh(ggeo, new THREE.MeshLambertMaterial({ map: gtex, aoMap: grainTex, aoMapIntensity: 0.6, polygonOffset: true, polygonOffsetFactor: -2 }));
     greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.green.x, 0.01, h.green.y);
+    for (const m of [plane, greenMesh]) { m.receiveShadow = true; m.userData.own = true; }
     holeGroup.add(plane, greenMesh);
-    holeGroup.userData = { own: [plane, greenMesh], art };
-    h.trees.forEach(([x, y, r, ht], i) => addTree(holeGroup, x, y, r, ht, i));
-    const rand = rng(500 + st.hole), [b0, b1, b2, b3] = h.bounds;
-    for (let i = 0; i < 160; i++) { // woods beyond the out-of-bounds line
+    holeGroup.userData = { art };
+    for (const e of h.water) { // shiny water surface over the painted pond
+      const w = new THREE.Mesh(waterGeo, waterMat);
+      w.scale.set(Math.max(1, e[2] - 0.4), Math.max(1, e[3] - 0.4), 1);
+      w.rotation.x = -Math.PI / 2; w.position.set(e[0], 0.04, e[1]);
+      holeGroup.add(w);
+    }
+    const rand = rng(500 + st.hole), [b0, b1, b2, b3] = h.bounds, forest = [];
+    for (let i = 0; i < 170; i++) { // woods beyond the out-of-bounds line
       const side = i % 4;
       let x, y;
       if (side < 2) { x = b0 - 30 + rand() * (b2 - b0 + 120); y = side ? b3 + 12 + rand() * 55 : b1 - 12 - rand() * 55; }
       else { y = b1 - 60 + rand() * (b3 - b1 + 120); x = side === 2 ? b0 - 14 - rand() * 50 : b2 + 14 + rand() * 70; }
-      addTree(holeGroup, x, y, 6 + rand() * 5, 14 + rand() * 12, i);
+      forest.push([x, y, 6 + rand() * 5, 14 + rand() * 12]);
+    }
+    holeGroup.add(buildTrees([...h.trees, ...forest]));
+    const cx = (b0 + b2) / 2, cy = (b1 + b3) / 2;
+    for (let i = 0; i < 18; i++) { // distant hills on the horizon
+      const a = (i / 18) * Math.PI * 2 + rand() * 0.3, d = 560 + rand() * 260, r = 150 + rand() * 140;
+      const hill = new THREE.Mesh(hillGeo, hillMat);
+      hill.scale.set(r, r * (0.22 + rand() * 0.12), r);
+      hill.position.set(cx + Math.cos(a) * d, -r * 0.04, cy + Math.sin(a) * d);
+      holeGroup.add(hill);
     }
     scene.add(holeGroup);
     pinGroup.position.copy(V(h.pin.x, h.pin.y));
   }
+
 
   // ---------- camera ----------
   function updateCamera(dt) {
@@ -945,7 +1125,8 @@ td.over { color: var(--over); font-weight: 700; }
     } else {
       // first person: eyes just behind and above the club, looking down the target line
       const putt = club().putter, back = putt ? 1.8 : 2.4, up = putt ? 0.9 : 1.15, pitch = 0.26;
-      pos = V(ball.x - dir.x * back, ball.y - dir.y * back, up);
+      const left = putt ? 0.2 : 0.35;
+      pos = V(ball.x - dir.x * back + dir.y * left, ball.y - dir.y * back - dir.x * left, up);
       look = new THREE.Vector3(pos.x + dir.x * 10 * Math.cos(pitch), pos.y - 10 * Math.sin(pitch), pos.z + dir.y * 10 * Math.cos(pitch));
       k = 1 - Math.pow(0.0005, dt);
     }
@@ -960,16 +1141,22 @@ td.over { color: var(--over); font-weight: 700; }
       clubRig.position.copy(V(ball.x, ball.y)); clubRig.rotation.y = -aimAng;
     }
     clubRig.visible = phase !== "holed" && phase !== "done";
-    const rate = pose.target < pose.theta - 0.5 ? 0.5 : 0.25;
-    pose.theta += (pose.target - pose.theta) * (1 - Math.pow(1 - rate, dt * 60));
-    clubPivot.quaternion.setFromAxisAngle(swingAxis, pose.theta);
+    syncClubModel();
+    const rate = pose.target < pose.theta - 0.5 ? 0.5 : 0.25, ease = (r) => 1 - Math.pow(1 - r, dt * 60);
+    pose.theta += (pose.target - pose.theta) * ease(rate);
+    pose.yaw += (pose.yawTarget - pose.yaw) * ease(0.3);
+    clubPivot.quaternion.setFromAxisAngle(swingAxis, pose.theta)
+      .premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), pose.yaw));
+    sunLight.target.position.copy(V(ball.x, ball.y, 0));
+    sunLight.position.copy(sunLight.target.position).addScaledVector(SUN_DIR, 100);
 
     const showBall = phase !== "holed" && phase !== "done";
-    ballMesh.visible = shadowMesh.visible = showBall;
-    const z = ball.z || 0, d = camera.position.distanceTo(V(ball.x, ball.y, z));
+    ballMesh.visible = showBall;
+    const teed = lie === "tee" && (phase === "aim" || phase === "swing");
+    teePeg.visible = teed; teePeg.position.copy(V(ball.x, ball.y));
+    const z = (ball.z || 0) + (teed ? TEE_UP : 0), d = camera.position.distanceTo(V(ball.x, ball.y, z));
     const s = Math.max(0.028, d * 0.0055);
     ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, z + s));
-    shadowMesh.scale.setScalar(s * 1.1 * Math.max(0.4, 1 - z / 60)); shadowMesh.position.copy(V(ball.x, ball.y, 0.03));
 
     pinGroup.scale.setScalar(Math.max(1, camera.position.distanceTo(pinGroup.position) / 45));
     flagMesh.rotation.y = Math.sin(tick / 14) * 0.35;
@@ -1052,7 +1239,8 @@ td.over { color: var(--over); font-weight: 700; }
     octx.fillStyle = "#ffffff"; octx.font = "700 15px 'Barlow Condensed', 'Arial Narrow', sans-serif";
     octx.fillText(`HOLE ${st.hole + 1}  ·  PAR ${H.par}  ·  STROKE ${Math.min(strokes + 1, MAX_STROKES)}`, bcx, 26, 176);
     octx.fillStyle = "#f2c230"; octx.font = "700 14px 'Barlow Condensed', 'Arial Narrow', sans-serif";
-    octx.fillText(`${fmtDist(distPin())} to pin · ${LIE_NAME[lie]}`, bcx, 44, 176);
+    const moving = phase === "flight" || phase === "roll";
+    octx.fillText(`${fmtDist(distPin())} to pin${moving ? "" : " · " + LIE_NAME[lie]}`, bcx, 44, 176);
 
     // the swipe: finger trail and a power gauge beside it
     const live = swipe, ghost = !live && lastSwing && performance.now() - lastSwing.t < 1400 ? lastSwing : null;
