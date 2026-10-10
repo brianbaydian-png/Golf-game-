@@ -53,6 +53,11 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .clubpick button { width: 42px; height: 42px; border-radius: 50%; border: 0; background: #ffffff1f; color: #fff; font: 700 1.3rem var(--body); cursor: pointer; }
 .clubpick button:disabled { opacity: 0.3; cursor: default; }
 .clubpick button:focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
+.shottypes { pointer-events: auto; display: flex; gap: 4px; background: #0d1a14b8; border-radius: 999px; padding: 3px; }
+.shottypes button { border: 0; border-radius: 999px; padding: 6px 12px; background: transparent; color: #dfe9e2; font: 600 0.85rem var(--body); cursor: pointer; }
+.shottypes button[aria-pressed="true"] { background: #ffffff; color: #13261b; }
+.shottypes button:disabled { opacity: 0.3; cursor: default; }
+.shottypes button:focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
 .clubname { min-width: 140px; text-align: center; color: #fff; font-family: var(--num); line-height: 1.1; }
 .clubname b { display: block; font-size: 1.15rem; }
 .clubname small { color: #c9d8cd; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
@@ -98,6 +103,12 @@ td.over { color: var(--over); font-weight: 700; }
     <div class="hudbar">
       <div class="stats" id="stats" hidden></div>
       <div class="msg" id="msg"></div>
+      <div class="shottypes" id="shotTypes" role="group" aria-label="Shot type">
+        <button type="button" data-shot="full">Full</button>
+        <button type="button" data-shot="punch">Punch</button>
+        <button type="button" data-shot="chip">Chip</button>
+        <button type="button" data-shot="flop">Flop</button>
+      </div>
       <div class="clubpick">
         <button type="button" id="clubPrev" aria-label="Longer club">‹</button>
         <div class="clubname"><b id="clubName">Driver</b><small id="clubInfo">250 yd carry</small></div>
@@ -111,7 +122,7 @@ td.over { color: var(--over); font-weight: 700; }
     </div>
   </div>
 
-  <p class="hint">Swipe right on the course. Drag down to take the club back: the further you pull, the harder you hit, and pulling very far is an overswing that is harder to control. Then swipe up through the ball. Drift right on the way up and the ball fades or slices; drift left and it draws or hooks. A slow upswipe loses power. Drag sideways to aim, or tap a spot on the map. Change clubs with the arrows (your caddie picks one for you). Keyboard: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
+  <p class="hint">Swipe right on the course. Drag down to take the club back: the further you pull, the harder you hit, and pulling very far is an overswing that is harder to control. Then swipe up through the ball. Drift right on the way up and the ball fades or slices; drift left and it draws or hooks. A slow upswipe loses power. Drag sideways to aim, or tap a spot on the map. Change clubs with the arrows (your caddie picks one for you), and pick a shot type: Punch flies low under the wind and runs out, Chip pops it short and rolls, Flop (wedges) goes high and stops fast. On the green the flag comes out, and white dots drift downhill so you can read the break. Keyboard: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> club.</p>
 
   <section class="card">
     <h3>Scorecard</h3>
@@ -302,7 +313,17 @@ td.over { color: var(--over); font-weight: 700; }
     const ft = distPin() * 3 * 1.25;
     return ([15, 30, 60, 90].find((t) => t >= ft) || 90) / 3;
   }
-  const carryEst = () => club().putter ? puttMax() : club().dist * lieFactor(lie, club());
+  // shot types: how a full swing is shaped
+  const SHOTS = {
+    full: { name: "Full", carry: 1, apex: 1, roll: 1, wind: 1, launch: 0, miss: 1 },
+    punch: { name: "Punch", carry: 0.82, apex: 0.45, roll: 2.6, wind: 0.5, launch: -6, miss: 0.9 },
+    chip: { name: "Chip", carry: 0.5, apex: 0.35, roll: 3, wind: 0.6, launch: -8, miss: 0.8 },
+    flop: { name: "Flop", carry: 0.68, apex: 1.7, roll: 0.15, wind: 1.3, launch: 14, miss: 1.4 },
+  };
+  let shotType = "full";
+  const shotAllowed = (t, c = club()) => !c.putter && (t === "full" || t === "punch" || (t === "chip" && c.dist <= 170) || (t === "flop" && c.dist <= 122));
+  const shotSpec = () => SHOTS[shotAllowed(shotType) ? shotType : "full"];
+  const carryEst = () => club().putter ? puttMax() : club().dist * lieFactor(lie, club()) * shotSpec().carry;
   const fmtDist = (yd) => (onGreenish() || yd < 10 ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`);
   const fmtDiff = (d) => (d === 0 ? "E" : d > 0 ? `+${d}` : `${d}`);
 
@@ -355,6 +376,7 @@ td.over { color: var(--over); font-weight: 700; }
     clubIdx = autoClub();
     autoAim();
     phase = "aim"; meter = { stage: 0, m: 0, power: 0 }; ball.z = 0;
+    shotType = "full";
     pose.theta = pose.target = pose.yaw = pose.yawTarget = 0;
     ui();
   }
@@ -493,7 +515,8 @@ td.over { color: var(--over); font-weight: 700; }
     const c = club(), power = meter.power;
     prev = { x: ball.x, y: ball.y };
     strokes++;
-    let a = Math.abs(acc) <= 2 ? 0 : acc;
+    const S = shotSpec();
+    let a = Math.abs(acc) <= 2 ? 0 : acc * S.miss;
     if (power > 1) a = a * (1 + (power - 1) * 6) + (Math.random() - 0.5) * (power - 1) * 40;
     trail = [];
 
@@ -507,18 +530,18 @@ td.over { color: var(--over); font-weight: 700; }
       return;
     }
 
-    const carry = c.dist * power * lieFactor(lie, c);
+    const carry = c.dist * power * lieFactor(lie, c) * S.carry;
     const noise = (lie === "rough" ? 1.5 : lie === "sand" ? 2.5 : 0.4) * (Math.random() * 2 - 1);
     const ang = aimAng + (a * 0.6 + noise) * Math.PI / 180;
     const curve = a * carry * 0.006;
-    const k = (carry / 250) * 1.1 * c.wind;
+    const k = (carry / 250) * 1.1 * c.wind * S.wind;
     const dir = { x: Math.cos(ang), y: Math.sin(ang) }, right = { x: -dir.y, y: dir.x };
     const sx = ball.x, sy = ball.y, drift = { x: wind.x * k, y: wind.y * k };
     const P = (t) => ({
       x: sx + dir.x * carry * t + right.x * curve * t * t + drift.x * t,
       y: sy + dir.y * carry * t + right.y * curve * t * t + drift.y * t,
     });
-    const apex = c.apex * Math.min(1, 0.4 + power * 0.6) * (carry < 40 ? 0.6 : 1);
+    const apex = c.apex * S.apex * Math.min(1, 0.4 + power * 0.6) * (carry < 40 && S === SHOTS.full ? 0.6 : 1);
     let endT = 1, hitTree = false;
     outer: for (let i = 1; i <= 120; i++) {
       const t = i / 120, p = P(t), z = 4 * apex * t * (1 - t);
@@ -526,10 +549,11 @@ td.over { color: var(--over); font-weight: 700; }
         if (hyp(p.x - tr[0], p.y - tr[1]) < tr[2] && z < tr[3]) { endT = t; hitTree = true; break outer; }
       }
     }
-    shot = { P, apex, t: 0, endT, hitTree, dur: 0.7 + carry / 170, carry, c };
+    shot = { P, apex, t: 0, endT, hitTree, dur: (0.7 + carry / 170) * (0.75 + 0.25 * Math.sqrt(S.apex)), carry, c, rollMul: S.roll };
     flyDir = dir;
     stats = { sx, sy, dir: { x: Math.cos(aimAng), y: Math.sin(aimAng) }, speed: Math.round(35 + carry * 0.52),
-      launch: c.launch + (lie === "sand" ? 3 : 0) + (power > 1 ? 1 : 0), shape: shapeName(a), carry: null, side: null };
+      launch: Math.max(3, c.launch + S.launch + (lie === "sand" ? 3 : 0) + (power > 1 ? 1 : 0)),
+      shape: S === SHOTS.full ? shapeName(a) : `${S.name} ${shapeName(a).toLowerCase()}`, carry: null, side: null };
     phase = "flight";
     sfx.swing(power);
     ui();
@@ -559,7 +583,7 @@ td.over { color: var(--over); font-weight: 700; }
   }
 
   function landShot() {
-    const { P, endT, c, carry, hitTree } = shot;
+    const { P, endT, c, carry, hitTree, rollMul } = shot;
     const p = P(endT), q = P(Math.max(0, endT - 0.02));
     ball = { x: p.x, y: p.y, z: 0 };
     if (stats && !stats.putt) {
@@ -580,7 +604,7 @@ td.over { color: var(--over); font-weight: 700; }
     sfx.land();
     if (l === "sand") { toast = { text: "In the bunker.", t: 120 }; return endShot(); }
     const mult = { fairway: 1, tee: 1, fringe: 0.8, green: 0.7, rough: 0.3 }[l] ?? 1;
-    const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * mult);
+    const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult);
     startRoll(dx * v0, dy * v0, 3);
   }
 
@@ -666,6 +690,12 @@ td.over { color: var(--over); font-weight: 700; }
     clubIdx = Math.max(0, Math.min(PUTTER, clubIdx + step));
     autoAim(); ui();
   }
+  for (const b of document.querySelectorAll("#shotTypes button")) {
+    b.addEventListener("click", () => {
+      if (phase !== "aim" || !shotAllowed(b.dataset.shot)) return;
+      shotType = b.dataset.shot; autoAim(); ui();
+    });
+  }
   $("clubPrev").addEventListener("click", () => pickClub(-1));
   $("clubNext").addEventListener("click", () => pickClub(1));
 
@@ -682,10 +712,16 @@ td.over { color: var(--over); font-weight: 700; }
     $("hTotal").textContent = fmtDiff(totalStrokes() - parSoFar());
     const c = club();
     $("clubName").textContent = c.name;
-    $("clubInfo").textContent = c.putter ? `${Math.round(puttMax() * 3)} ft range` : `${Math.round(carryEst())} yd carry`;
+    $("clubInfo").textContent = c.putter ? `${Math.round(puttMax() * 3)} ft range` : `${Math.round(carryEst())} yd carry${shotType !== "full" ? " · " + SHOTS[shotType].name.toLowerCase() : ""}`;
     const busy = phase !== "aim";
     $("clubPrev").disabled = busy || clubIdx === 0;
     $("clubNext").disabled = busy || clubIdx === PUTTER;
+    if (!shotAllowed(shotType)) shotType = "full";
+    $("shotTypes").hidden = c.putter;
+    for (const b of document.querySelectorAll("#shotTypes button")) {
+      b.setAttribute("aria-pressed", String(b.dataset.shot === shotType));
+      b.disabled = busy || !shotAllowed(b.dataset.shot);
+    }
   }
 
   function renderCard() {
@@ -898,7 +934,34 @@ td.over { color: var(--over); font-weight: 700; }
     teePeg.add(stem, cup);
   }
   const TEE_UP = 0.045;
-  scene.add(ballMesh, prevLine, tracer, teePeg);
+  // slope dots: drift downhill across the green while you line up a putt
+  const DOTS = 260, dotGeo = new THREE.BufferGeometry(), dotXY = new Float32Array(DOTS * 2);
+  dotGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(DOTS * 3), 3));
+  const slopeDots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0.85, depthWrite: false }));
+  slopeDots.frustumCulled = false;
+  const cupRing = new THREE.Mesh(new THREE.RingGeometry(0.085, 0.105, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+  cupRing.rotation.x = -Math.PI / 2;
+  function seedDot(i, anywhere) {
+    const g = H.green, sm = hyp(H.slope[0], H.slope[1]) || 1;
+    let a = Math.random() * Math.PI * 2, r = g.r * Math.sqrt(Math.random());
+    if (!anywhere) { // re-enter on the uphill edge
+      a = Math.atan2(-H.slope[1] / sm, -H.slope[0] / sm) + (Math.random() - 0.5) * 2.4; r = g.r * 0.98;
+    }
+    dotXY[i * 2] = g.x + Math.cos(a) * r; dotXY[i * 2 + 1] = g.y + Math.sin(a) * r;
+  }
+  function updateDots(dt) {
+    const show = club().putter && onGreenish() && (phase === "aim" || phase === "swing");
+    slopeDots.visible = show;
+    if (!show) return;
+    const arr = dotGeo.attributes.position.array, g = H.green, v = 0.6;
+    for (let i = 0; i < DOTS; i++) {
+      dotXY[i * 2] += H.slope[0] * v * dt; dotXY[i * 2 + 1] += H.slope[1] * v * dt;
+      if (hyp(dotXY[i * 2] - g.x, dotXY[i * 2 + 1] - g.y) > g.r) seedDot(i, false);
+      arr[i * 3] = dotXY[i * 2]; arr[i * 3 + 1] = 0.03; arr[i * 3 + 2] = dotXY[i * 2 + 1];
+    }
+    dotGeo.attributes.position.needsUpdate = true;
+  }
+  scene.add(ballMesh, prevLine, tracer, teePeg, slopeDots, cupRing);
 
   // your club, seen from just behind the ball. The shaft rises from the heel of the head toward
   // your hands on the left; it swings back and through on an inclined plane, and yaws left or
@@ -985,17 +1048,9 @@ td.over { color: var(--over); font-weight: 700; }
     g.fillStyle = "#92db77";
     for (let x = gr.x - gr.r; x < gr.x + gr.r; x += 3) g.fillRect(x, gr.y - gr.r, 1.5, gr.r * 2);
     const sm = hyp(h.slope[0], h.slope[1]);
-    if (sm > 0.2) { // chevrons point downhill
-      const ux = h.slope[0] / sm, uy = h.slope[1] / sm, L = 0.45;
-      g.strokeStyle = `rgba(255,255,255,${Math.min(0.45, 0.12 + sm * 0.1)})`; g.lineWidth = 0.07;
-      for (let x = gr.x - gr.r; x <= gr.x + gr.r; x += 1.8) for (let y = gr.y - gr.r; y <= gr.y + gr.r; y += 1.8) {
-        g.beginPath();
-        g.moveTo(x - ux * L - uy * L * 0.7, y - uy * L + ux * L * 0.7);
-        g.lineTo(x, y);
-        g.lineTo(x - ux * L + uy * L * 0.7, y - uy * L - ux * L * 0.7);
-        g.stroke();
-      }
-    }
+    g.strokeStyle = "rgba(255,255,255,0.16)"; g.lineWidth = 0.035; // putting grid, one yard squares
+    for (let x = Math.ceil(gr.x - gr.r); x <= gr.x + gr.r; x++) { g.beginPath(); g.moveTo(x, gr.y - gr.r); g.lineTo(x, gr.y + gr.r); g.stroke(); }
+    for (let y = Math.ceil(gr.y - gr.r); y <= gr.y + gr.r; y++) { g.beginPath(); g.moveTo(gr.x - gr.r, y); g.lineTo(gr.x + gr.r, y); g.stroke(); }
     g.restore();
     circ(g, h.pin.x, h.pin.y, 0.09); g.fillStyle = "#0b1610"; g.fill();
     g.strokeStyle = "#ffffff99"; g.lineWidth = 0.02; g.stroke();
@@ -1108,6 +1163,8 @@ td.over { color: var(--over); font-weight: 700; }
     }
     scene.add(holeGroup);
     pinGroup.position.copy(V(h.pin.x, h.pin.y));
+    cupRing.position.copy(V(h.pin.x, h.pin.y, 0.02));
+    for (let i = 0; i < DOTS; i++) seedDot(i, true);
   }
 
 
@@ -1142,6 +1199,9 @@ td.over { color: var(--over); font-weight: 700; }
     }
     clubRig.visible = phase !== "holed" && phase !== "done";
     syncClubModel();
+    updateDots(dt);
+    // the caddie pulls the flag while you putt
+    pinGroup.visible = !((club().putter && onGreenish() && (phase === "aim" || phase === "swing")) || (roll && roll.putt));
     const rate = pose.target < pose.theta - 0.5 ? 0.5 : 0.25, ease = (r) => 1 - Math.pow(1 - r, dt * 60);
     pose.theta += (pose.target - pose.theta) * ease(rate);
     pose.yaw += (pose.yawTarget - pose.yaw) * ease(0.3);
