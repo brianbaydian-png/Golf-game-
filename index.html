@@ -262,6 +262,7 @@ td.over { color: var(--over); font-weight: 800; }
 (() => {
   // ---------- equipment ----------
   const CLUBS = [
+    { id: "MD", name: "Albi", dist: 400, apex: 34, roll: 0.12, wind: 0.85, wood: true }, // mini driver
     { id: "1W", name: "Driver", dist: 295, apex: 32, roll: 0.13, wind: 0.9, wood: true },
     { id: "3W", name: "3 Wood", dist: 255, apex: 30, roll: 0.11, wind: 0.95, wood: true },
     { id: "3i", name: "3 Iron", dist: 225, apex: 27, roll: 0.08, wind: 1 },
@@ -276,11 +277,11 @@ td.over { color: var(--over); font-weight: 800; }
     { id: "LW", name: "Lob Wedge", dist: 100, apex: 31, roll: 0.018, wind: 1.25 },
     { id: "PT", name: "Putter", putter: true },
   ];
-  const LAUNCH = { "1W": 12, "3W": 13, "3i": 14, "4i": 15, "5i": 16, "6i": 17, "7i": 19, "8i": 21, "9i": 24, PW: 27, SW: 32, LW: 38, PT: 2 };
+  const LAUNCH = { MD: 11, "1W": 12, "3W": 13, "3i": 14, "4i": 15, "5i": 16, "6i": 17, "7i": 19, "8i": 21, "9i": 24, PW: 27, SW: 32, LW: 38, PT: 2 };
   CLUBS.forEach((c) => { c.launch = LAUNCH[c.id]; });
-  const SHORT = { "1W": "D", "3W": "3w", PW: "Pw", SW: "Sw", LW: "Lw", PT: "P" };
-  const SWING_MPH = { "1W": 124, "3W": 112, "3i": 100, "4i": 97, "5i": 94, "6i": 91, "7i": 88, "8i": 86, "9i": 84, PW: 78, SW: 70, LW: 63, PT: 9 };
-  const TOL = { "1W": 4, "3W": 4.3, "3i": 4.6, PW: 6, SW: 6.3, LW: 6.5, PT: 8 }; // straight-swing allowance in degrees
+  const SHORT = { MD: "Albi", "1W": "D", "3W": "3w", PW: "Pw", SW: "Sw", LW: "Lw", PT: "P" };
+  const SWING_MPH = { MD: 150, "1W": 124, "3W": 112, "3i": 100, "4i": 97, "5i": 94, "6i": 91, "7i": 88, "8i": 86, "9i": 84, PW: 78, SW: 70, LW: 63, PT: 9 };
+  const TOL = { MD: 3.6, "1W": 4, "3W": 4.3, "3i": 4.6, PW: 6, SW: 6.3, LW: 6.5, PT: 8 }; // straight-swing allowance in degrees
   CLUBS.forEach((c) => { c.short = SHORT[c.id] || c.id; c.mph = SWING_MPH[c.id]; c.tol = TOL[c.id] || 5; });
   const PUTTER = CLUBS.length - 1;
   // golf balls: each trades distance, spin (how quickly it stops) and forgiveness (how wide a swing still flies straight)
@@ -472,7 +473,7 @@ td.over { color: var(--over); font-weight: 800; }
     const d = distPin();
     if (lie === "green" || (lie === "fringe" && d < 15)) return PUTTER;
     for (let i = PUTTER - 1; i >= 0; i--) if (CLUBS[i].dist * lieFactor(lie, CLUBS[i]) >= d * 0.97) return i;
-    return lie === "tee" ? 0 : 1;
+    return 0; // nothing reaches: the Albi goes furthest
   }
   function autoAim() {
     const d = distPin(), carry = carryEst();
@@ -731,7 +732,7 @@ td.over { color: var(--over); font-weight: 800; }
       const land = P(endT);
       flightCam = carry > 70 ? { t: 0, hold: 0.75, land, dir: { x: dir.x, y: dir.y }, side: curve >= 0 ? -1 : 1, cut: false } : null;
     }
-    const SPIN = { "1W": 2700, "3W": 3600, "3i": 4100, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
+    const SPIN = { MD: 2300, "1W": 2700, "3W": 3600, "3i": 4100, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
     const spinMul = { full: 1, punch: 0.7, chip: 0.8, flop: 1.15 }[S === SHOTS.full ? "full" : Object.keys(SHOTS).find((k) => SHOTS[k] === S)];
     stats = { sx, sy, dir: { x: Math.cos(aimAng), y: Math.sin(aimAng) }, speed: Math.round(35 + carry * 0.52),
       spin: Math.round(SPIN[c.id] * Math.sqrt(power) * spinMul * (lie === "rough" ? 0.7 : lie === "sand" ? 0.85 : 1) / 50) * 50,
@@ -992,6 +993,7 @@ td.over { color: var(--over); font-weight: 800; }
     document.querySelector(".stage").classList.toggle("swinging", phase === "swing");
     if (!shotAllowed(shotType)) shotType = "full";
     $("clubName").textContent = c.short;
+    $("clubName").style.fontSize = c.short.length > 3 ? "1.05rem" : "";
     $("clubInfo").textContent = c.putter ? `${Math.round(puttMax() * 3)} ft` : `~${Math.round(carryEst())}`;
     $("clubBtn").disabled = busy;
     $("shotBtn").hidden = c.putter;
@@ -1409,8 +1411,8 @@ td.over { color: var(--over); font-weight: 800; }
       const face = box(0.002, 0.022, 0.11, phong(0x9aa2aa, { shininess: 90 })); face.position.set(-0.003, -0.017, 0.06);
       g.add(blade, line, face, hosel);
     } else if (c.wood) { // driver and fairway wood: rounded, glossy crowns
-      const f = c.id === "1W" ? 1 : 0.8;
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), phong(c.id === "1W" ? 0xd9dde2 : 0xe4c6dd, { shininess: 120, specular: 0xffffff }));
+      const f = c.id === "1W" ? 1 : c.id === "MD" ? 0.9 : 0.8;
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), phong(c.id === "MD" ? 0xe8b931 : c.id === "1W" ? 0xd9dde2 : 0xe4c6dd, { shininess: 120, specular: 0xffffff }));
       body.scale.set(0.062 * f, 0.034 * f, 0.064 * f);
       body.position.set(-0.058 * f, -0.03 + 0.034 * f, 0.058 * f);
       const face = box(0.004, 0.044 * f, 0.09 * f, phong(0x8d959e, { shininess: 80 }));
