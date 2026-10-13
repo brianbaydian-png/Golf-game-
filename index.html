@@ -158,7 +158,7 @@ td.over { color: var(--over); font-weight: 800; }
         <li><b>Straight shots:</b> swipe back up along the same line you pulled down. Coming up to the right of that line fades or slices the ball; to the left draws or hooks it.</li>
         <li><b>Aim:</b> drag sideways on the course. The binoculars show where you are aiming.</li>
         <li><b>Clubs:</b> tap the blue button. The orange button picks Regular, Punch, Chip or Flop.</li>
-        <li><b>Putting:</b> the flag comes out, and the red grid and drifting dots show the slope.</li>
+        <li><b>Putting:</b> greens really slope. The red grid and the drifting dots show which way the ball will break. Too much pace and it can lip out.</li>
       </ul>
       <button class="btn primary" id="helpGo" type="button">Tee off</button>
     </div>
@@ -196,7 +196,7 @@ td.over { color: var(--over); font-weight: 800; }
   const TOL = { "1W": 1.2, "3W": 1.3, "5W": 1.35, PW: 1.8, SW: 1.85, LW: 1.9, PT: 2.5 }; // straight-swing allowance in degrees
   CLUBS.forEach((c) => { c.short = SHORT[c.id] || c.id; c.mph = SWING_MPH[c.id]; c.tol = TOL[c.id] || 1.5; });
   const PUTTER = CLUBS.length - 1;
-  const MAX_STROKES = 10, CUP_R = 0.08, CAPTURE = 1.4;
+  const MAX_STROKES = 10, CUP_R = 0.065;
   // rolling deceleration by surface, yd/s^2
   const DECEL = { green: 0.6, fringe: 1.6, fairway: 1.4, tee: 1.4, rough: 4.5 };
   const LIE_NAME = { tee: "Tee box", fairway: "Fairway", rough: "Rough", sand: "Bunker", green: "Green", fringe: "Fringe", water: "Water", ob: "Out of bounds" };
@@ -393,6 +393,27 @@ td.over { color: var(--over); font-weight: 800; }
     aimAng = Math.atan2(target.y - ball.y, target.x - ball.x);
   }
 
+  // ---------- green surface ----------
+  // Greens are raised and tilted along the hole's slope, with a gentle crown. Heights are drawn
+  // VIS times steeper than the slope the ball feels, so the break is easy to see.
+  const VIS = 2.2;
+  function greenHAt(h, x, y) {
+    if (!h) return 0;
+    const g = h.green, dx = x - g.x, dy = y - g.y, r = hyp(dx, dy), R = g.r + 3;
+    if (r >= R) return 0;
+    const sm = hyp(h.slope[0], h.slope[1]);
+    const tilt = -(h.slope[0] * dx + h.slope[1] * dy) * 0.01 * VIS;
+    const base = sm * 0.01 * VIS * g.r + 0.12; // keeps every part of the green above the fairway
+    const crown = 0.15 * Math.max(0, 1 - (r / g.r) ** 2);
+    const t = r <= g.r + 0.5 ? 1 : 1 - (r - g.r - 0.5) / (R - g.r - 0.5);
+    return (base + tilt + crown) * t * t * (3 - 2 * t);
+  }
+  const greenH = (x, y) => greenHAt(H, x, y);
+  function greenGrad(x, y) {
+    const e = 0.05;
+    return [(greenH(x + e, y) - greenH(x - e, y)) / (2 * e), (greenH(x, y + e) - greenH(x, y - e)) / (2 * e)];
+  }
+
   // ---------- flow ----------
   function newHole(i) {
     H = HOLES[i];
@@ -492,16 +513,15 @@ td.over { color: var(--over); font-weight: 800; }
       swipe.curAng = -Math.atan2(swipe.bottom.x - swipe.start.x, Math.max(1, swipe.bottom.y - swipe.start.y)) * 180 / Math.PI;
     }
     if (swipe.stage === "through") {
-      // on the way down the club follows the line from the top of your swing to your finger
+      // a short flick up is enough: once the downswing is committed the club swings through by itself
       const ang = Math.atan2(p.x - swipe.bottom.x, Math.max(1, swipe.bottom.y - p.y));
       swipe.curAng = ang * 180 / Math.PI;
       pose.yawTarget = Math.max(-0.6, Math.min(0.6, ang * 1.6));
-      pose.target = Math.max(0, (p.y - swipe.start.y) / swipe.full) * (club().putter ? 0.8 : 1.5);
-      if (p.y <= swipe.start.y) strike(p);
+      if (swipe.bottom.y - p.y >= Math.max(30, swipe.depth * 0.18)) strike(p);
     }
   }
   function endSwing(p) {
-    if (swipe.stage === "through" && swipe.bottom.y - p.y >= swipe.depth * 0.6) return strike(p);
+    if (swipe.stage === "through") return strike(p);
     cancelSwing(swipe.stage === "back"
       ? "No swing. After pulling back, swipe up through the ball to hit it."
       : "No swing. Swipe all the way up through the ball.");
@@ -685,18 +705,29 @@ td.over { color: var(--over); font-weight: 800; }
       let sp = hyp(roll.vx, roll.vy);
       const d = hyp(ball.x - H.pin.x, ball.y - H.pin.y);
       if (d < CUP_R && !roll.lipped) {
-        if (sp < CAPTURE) return holed();
+        // a ball over the cup drops if it is slow enough; a line through the middle can be going faster than one that clips the edge
+        const off = Math.abs((roll.vx * (H.pin.y - ball.y) - roll.vy * (H.pin.x - ball.x)) / (sp || 1));
+        const centre = Math.max(0, 1 - off / CUP_R);
+        if (sp < 0.5 + 1.3 * centre) return holed();
+        // too quick: it catches the rim, swings round it and spits out toward the side it caught
         roll.lipped = true;
-        const a = (Math.random() - 0.5) * 1.2, c = Math.cos(a), s = Math.sin(a);
-        [roll.vx, roll.vy] = [(roll.vx * c - roll.vy * s) * 0.55, (roll.vx * s + roll.vy * c) * 0.55];
+        const ox = ball.x - H.pin.x, oy = ball.y - H.pin.y, side = Math.sign(roll.vx * oy - roll.vy * ox) || 1;
+        const a = side * (0.4 + 1.3 * (1 - centre)), c = Math.cos(a), s = Math.sin(a), keep = 0.45 + 0.25 * centre;
+        [roll.vx, roll.vy] = [(roll.vx * c - roll.vy * s) * keep, (roll.vx * s + roll.vy * c) * keep];
         sp = hyp(roll.vx, roll.vy);
+        roll.hop = { len: Math.max(0.05, sp * 0.06), h: 0.025, s: 0 };
         sfx.lip();
         toast = { text: "Lipped out!", t: 100 };
-      } else if (d > CUP_R * 1.6) roll.lipped = false;
+        continue;
+      } else if (d > CUP_R * 1.8) roll.lipped = false;
+      if (d < CUP_R + 0.02 && sp < 0.3) return holed(); // hanging on the lip, it tips in
       const dec = DECEL[l] * dt;
       if (dec >= sp) { roll.vx = roll.vy = 0; return endShot(); }
       roll.vx *= (sp - dec) / sp; roll.vy *= (sp - dec) / sp;
-      if (l === "green") { roll.vx += H.slope[0] * 0.11 * dt; roll.vy += H.slope[1] * 0.11 * dt; }
+      if (l === "green" || l === "fringe") { // gravity along the real surface of the green
+        const [gx, gy] = greenGrad(ball.x, ball.y);
+        roll.vx -= gx / VIS * 10.7 * dt; roll.vy -= gy / VIS * 10.7 * dt;
+      }
       ball.x += roll.vx * dt; ball.y += roll.vy * dt;
       if (hyp(roll.vx, roll.vy) < 0.03) return endShot();
     }
@@ -709,14 +740,15 @@ td.over { color: var(--over); font-weight: 800; }
   }
 
   const TERMS = { "-3": "Albatross!", "-2": "Eagle!", "-1": "Birdie!", "0": "Par", "1": "Bogey", "2": "Double Bogey", "3": "Triple Bogey" };
+  let sink = null;
   function holed(msg) {
-    ball = { x: H.pin.x, y: H.pin.y, z: 0 };
+    sink = { t: 0, x0: ball.x, y0: ball.y };
     roll = null; shot = null;
     phase = "holed";
     if (stats && !stats.putt) stats.total = hyp(H.pin.x - stats.sx, H.pin.y - stats.sy);
     sfx.cup();
     toast = { text: msg || "In the hole!", t: 120 };
-    setTimeout(() => finishHole(strokes), 900);
+    setTimeout(() => finishHole(strokes), 1300);
     ui();
   }
 
@@ -1056,10 +1088,15 @@ td.over { color: var(--over); font-weight: 800; }
   dotGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(DOTS * 3), 3));
   const slopeDots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0.85, depthWrite: false }));
   slopeDots.frustumCulled = false;
-  const cupRing = new THREE.Mesh(new THREE.RingGeometry(0.085, 0.105, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
-  cupRing.rotation.x = -Math.PI / 2;
+  // the cup: dark walls under a white liner, sunk into the raised green (the green mesh has a hole cut for it)
+  const cupGroup = new THREE.Group();
+  const cupWall = new THREE.Mesh(new THREE.CylinderGeometry(CUP_R, CUP_R, 1, 28, 1, true), lambert(0x3a3a36, { side: THREE.BackSide }));
+  const cupLiner = new THREE.Mesh(new THREE.CylinderGeometry(CUP_R * 1.002, CUP_R * 1.002, 0.025, 28, 1, true), lambert(0xffffff, { side: THREE.BackSide }));
+  const cupBottom = new THREE.Mesh(new THREE.CircleGeometry(CUP_R, 28), lambert(0x1b1b18));
+  cupBottom.rotation.x = -Math.PI / 2; cupBottom.position.y = 0.004;
+  cupGroup.add(cupWall, cupLiner, cupBottom);
   function seedDot(i, anywhere) {
-    const g = H.green, sm = hyp(H.slope[0], H.slope[1]) || 1;
+    const g = H.green, sm = hyp(H.slope[0], H.slope[1]) || 1; // slope dots start uphill
     let a = Math.random() * Math.PI * 2, r = g.r * Math.sqrt(Math.random());
     if (!anywhere) { // re-enter on the uphill edge
       a = Math.atan2(-H.slope[1] / sm, -H.slope[0] / sm) + (Math.random() - 0.5) * 2.4; r = g.r * 0.98;
@@ -1072,24 +1109,33 @@ td.over { color: var(--over); font-weight: 800; }
     if (!show) return;
     const arr = dotGeo.attributes.position.array, g = H.green, v = 0.6;
     for (let i = 0; i < DOTS; i++) {
-      dotXY[i * 2] += H.slope[0] * v * dt; dotXY[i * 2 + 1] += H.slope[1] * v * dt;
+      const [gx, gy] = greenGrad(dotXY[i * 2], dotXY[i * 2 + 1]);
+      dotXY[i * 2] -= gx / VIS * 100 * v * dt; dotXY[i * 2 + 1] -= gy / VIS * 100 * v * dt;
       if (hyp(dotXY[i * 2] - g.x, dotXY[i * 2 + 1] - g.y) > g.r) seedDot(i, false);
-      arr[i * 3] = dotXY[i * 2]; arr[i * 3 + 1] = 0.03; arr[i * 3 + 2] = dotXY[i * 2 + 1];
+      arr[i * 3] = dotXY[i * 2]; arr[i * 3 + 1] = greenH(dotXY[i * 2], dotXY[i * 2 + 1]) + 0.03; arr[i * 3 + 2] = dotXY[i * 2 + 1];
     }
     dotGeo.attributes.position.needsUpdate = true;
   }
-  // aim beam: a pale blue ray along the ground that fades out ahead of the ball
-  const aimBeam = new THREE.Group();
+  // aim beam: a pale blue ribbon that follows the ground and fades out ahead of the ball
+  const BEAM_N = 32, beamGeo = new THREE.BufferGeometry();
   {
+    beamGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(BEAM_N * 6), 3));
+    const uv = new Float32Array(BEAM_N * 4), idx = [];
+    for (let i = 0; i < BEAM_N; i++) { const u = i / (BEAM_N - 1); uv.set([u, 0, u, 1], i * 4); }
+    for (let i = 0; i < BEAM_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    beamGeo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    beamGeo.setIndex(idx);
+  }
+  const aimBeam = (() => {
     const c = document.createElement("canvas"); c.width = 128; c.height = 4;
     const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 128, 0);
     gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = gr; g.fillRect(0, 0, 128, 4);
-    const beam = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), color: C(0xa9f0ff), transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-    beam.rotation.x = -Math.PI / 2;
-    aimBeam.add(beam); aimBeam.userData.beam = beam;
-  }
-  scene.add(ballMesh, tracer, teePeg, slopeDots, cupRing, aimBeam);
+    const m = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), color: C(0xa9f0ff), transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    m.frustumCulled = false;
+    return m;
+  })();
+  scene.add(ballMesh, tracer, teePeg, slopeDots, cupGroup, aimBeam);
 
   // your club, seen from just behind the ball. The shaft rises from the heel of the head toward
   // your hands on the left; it swings back and through on an inclined plane, and yaws left or
@@ -1181,8 +1227,6 @@ td.over { color: var(--over); font-weight: 800; }
     for (let x = Math.ceil(gr.x - gr.r); x <= gr.x + gr.r; x++) { g.beginPath(); g.moveTo(x, gr.y - gr.r); g.lineTo(x, gr.y + gr.r); g.stroke(); }
     for (let y = Math.ceil(gr.y - gr.r); y <= gr.y + gr.r; y++) { g.beginPath(); g.moveTo(gr.x - gr.r, y); g.lineTo(gr.x + gr.r, y); g.stroke(); }
     g.restore();
-    circ(g, h.pin.x, h.pin.y, 0.09); g.fillStyle = "#0b1610"; g.fill();
-    g.strokeStyle = "#ffffff99"; g.lineWidth = 0.02; g.stroke();
   }
 
   function paintCourse(h) {
@@ -1260,10 +1304,21 @@ td.over { color: var(--over); font-weight: 800; }
     plane.rotation.x = -Math.PI / 2; plane.position.set(art.X0 + art.W / 2, 0, art.Y0 + art.H / 2);
     const ga = paintGreen(h);
     const gtex = srgbTex(ga.canvas); gtex.anisotropy = aniso;
-    const ggeo = new THREE.CircleGeometry(ga.R, 64);
+    // a ring of vertices around the pin (so the cup is a real hole), lifted to the green's surface
+    const gx0 = h.green.x - ga.R, gy0 = h.green.y - ga.R;
+    const ggeo = new THREE.RingGeometry(CUP_R, ga.R + hyp(h.pin.x - h.green.x, h.pin.y - h.green.y), 120, 56);
+    {
+      const pos = ggeo.attributes.position, uv = ggeo.attributes.uv;
+      for (let i = 0; i < pos.count; i++) {
+        const cx = h.pin.x + pos.getX(i), cy = h.pin.y - pos.getY(i);
+        pos.setZ(i, greenHAt(h, cx, cy));
+        uv.setXY(i, (cx - gx0) / (2 * ga.R), 1 - (cy - gy0) / (2 * ga.R));
+      }
+      ggeo.computeVertexNormals();
+    }
     addGrain(ggeo, ga.R * 2 / 0.5, ga.R * 2 / 0.5);
-    greenMesh = new THREE.Mesh(ggeo, new THREE.MeshLambertMaterial({ map: gtex, aoMap: grainTex, aoMapIntensity: 0.2, polygonOffset: true, polygonOffsetFactor: -2 }));
-    greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.green.x, 0.01, h.green.y);
+    greenMesh = new THREE.Mesh(ggeo, new THREE.MeshLambertMaterial({ map: gtex, aoMap: grainTex, aoMapIntensity: 0.2, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
+    greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.pin.x, 0.005, h.pin.y);
     for (const m of [plane, greenMesh]) { m.receiveShadow = true; m.userData.own = true; }
     holeGroup.add(plane, greenMesh);
     holeGroup.userData = { art };
@@ -1291,8 +1346,11 @@ td.over { color: var(--over); font-weight: 800; }
       holeGroup.add(hill);
     }
     scene.add(holeGroup);
-    pinGroup.position.copy(V(h.pin.x, h.pin.y));
-    cupRing.position.copy(V(h.pin.x, h.pin.y, 0.02));
+    pinGroup.position.copy(V(h.pin.x, h.pin.y)); // the stick stands on the bottom of the cup
+    const cupDepth = greenHAt(h, h.pin.x, h.pin.y);
+    cupGroup.position.copy(V(h.pin.x, h.pin.y));
+    cupWall.scale.y = cupDepth; cupWall.position.y = cupDepth / 2;
+    cupLiner.position.y = cupDepth - 0.014;
     for (let i = 0; i < DOTS; i++) seedDot(i, true);
   }
 
@@ -1306,14 +1364,15 @@ td.over { color: var(--over); font-weight: 800; }
       const putt = roll && roll.putt;
       const back = putt ? 3.4 : phase === "roll" ? 12 : 34, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 9 + ball.z * 0.35;
       pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
-      look = V(ball.x, ball.y, (ball.z || 0) * 0.8);
+      look = V(ball.x, ball.y, (ball.z || 0) * 0.8 + greenH(ball.x, ball.y));
       k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.03 : 0.25, dt); // camera trails behind
       kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
     } else {
       // first person: eyes just behind and above the club, looking down the target line
-      const putt = club().putter, back = putt ? 3.4 : 5.0, up = putt ? 0.46 : 0.66, pitch = putt ? 0.1 : 0.093;
+      const putt = club().putter, back = putt ? 3.4 : 5.0, up = putt ? 0.95 : 0.66, pitch = putt ? 0.22 : 0.093;
       const left = putt ? 0.12 : 0.18;
       pos = V(ball.x - dir.x * back + dir.y * left, ball.y - dir.y * back - dir.x * left, up);
+      pos.y += greenH(ball.x, ball.y);
       look = new THREE.Vector3(pos.x + dir.x * 10 * Math.cos(pitch), pos.y - 10 * Math.sin(pitch), pos.z + dir.y * 10 * Math.cos(pitch));
       if (lookMode) { // binoculars: hover behind where the shot should land
         const L = putt ? Math.max(2, distPin()) : carryEst(), tx = ball.x + dir.x * L, ty = ball.y + dir.y * L, b2 = putt ? 9 : 30;
@@ -1333,13 +1392,11 @@ td.over { color: var(--over); font-weight: 800; }
   function updateScene(dt) {
     // the club follows the ball while you set up, then stays put through the shot
     if (phase === "aim" || phase === "swing") {
-      clubRig.position.copy(V(ball.x, ball.y)); clubRig.rotation.y = -aimAng;
+      clubRig.position.copy(V(ball.x, ball.y, greenH(ball.x, ball.y))); clubRig.rotation.y = -aimAng;
     }
     clubRig.visible = phase !== "holed" && phase !== "done";
     syncClubModel();
     updateDots(dt);
-    // the caddie pulls the flag while you putt
-    pinGroup.visible = !((club().putter && onGreenish() && (phase === "aim" || phase === "swing")) || (roll && roll.putt));
     const rate = pose.target < pose.theta - 0.5 ? 0.5 : 0.25, ease = (r) => 1 - Math.pow(1 - r, dt * 60);
     pose.theta += (pose.target - pose.theta) * ease(rate);
     pose.yaw += (pose.yawTarget - pose.yaw) * ease(0.3);
@@ -1348,24 +1405,36 @@ td.over { color: var(--over); font-weight: 800; }
     sunLight.target.position.copy(V(ball.x, ball.y, 0));
     sunLight.position.copy(sunLight.target.position).addScaledVector(SUN_DIR, 100);
 
-    const showBall = phase !== "holed" && phase !== "done";
+    if (phase === "holed" && sink) { // roll over the lip and drop to the bottom of the cup
+      sink.t = Math.min(1, sink.t + dt / 0.4);
+      const f = sink.t, depth = greenH(H.pin.x, H.pin.y);
+      ball.x = sink.x0 + (H.pin.x - sink.x0) * Math.min(1, f * 1.6);
+      ball.y = sink.y0 + (H.pin.y - sink.y0) * Math.min(1, f * 1.6);
+      ball.z = -depth * f * f;
+    }
+    const showBall = phase !== "done";
     ballMesh.visible = showBall;
     const teed = lie === "tee" && (phase === "aim" || phase === "swing");
     teePeg.visible = teed; teePeg.position.copy(V(ball.x, ball.y));
     const z = (ball.z || 0) + (teed ? TEE_UP : 0), d = camera.position.distanceTo(V(ball.x, ball.y, z));
     const s = Math.max(0.034, d * 0.0048);
-    ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, z + s));
+    ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, greenH(ball.x, ball.y) + z + s));
 
-    pinGroup.scale.setScalar(Math.max(1, camera.position.distanceTo(pinGroup.position) / 45));
+    pinGroup.scale.setScalar(Math.max(1.15, camera.position.distanceTo(pinGroup.position) / 40));
     flagMesh.rotation.y = Math.sin(tick / 14) * 0.35;
 
     // aim beam
     const aiming = (phase === "aim" || phase === "swing") && !lookMode;
     aimBeam.visible = aiming;
     if (aiming) {
-      const L = club().putter ? Math.max(0.6, distPin()) : 60, w = club().putter ? 0.05 : 0.28, beam = aimBeam.userData.beam;
-      aimBeam.position.copy(V(ball.x, ball.y, 0.035)); aimBeam.rotation.y = -aimAng;
-      beam.scale.set(L, w, 1); beam.position.set(L / 2 + 0.05, 0, 0);
+      const L = club().putter ? Math.max(0.6, distPin()) : 60, w = (club().putter ? 0.05 : 0.28) / 2;
+      const dx = Math.cos(aimAng), dy = Math.sin(aimAng), arr = beamGeo.attributes.position.array;
+      for (let i = 0; i < BEAM_N; i++) {
+        const along = 0.05 + L * i / (BEAM_N - 1), cx = ball.x + dx * along, cy = ball.y + dy * along, gz = greenH(cx, cy) + 0.03;
+        const a = V(cx - dy * w, cy + dx * w, gz), b = V(cx + dy * w, cy - dx * w, gz);
+        arr.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6);
+      }
+      beamGeo.attributes.position.needsUpdate = true;
     }
     // tracer ribbon
     const tarr = tracerGeo.attributes.position.array, n = Math.min(trail.length, TRAIL_N);
@@ -1373,8 +1442,9 @@ td.over { color: var(--over); font-weight: 800; }
       const p = trail[trail.length - n + i];
       const w = 0.12 + Math.hypot(p.x - camera.position.x, p.y - camera.position.z, p.z - camera.position.y) * 0.0055;
       const o = i * 6;
-      tarr[o] = p.x; tarr[o + 1] = p.z + 0.05 - w; tarr[o + 2] = p.y;
-      tarr[o + 3] = p.x; tarr[o + 4] = p.z + 0.05 + w; tarr[o + 5] = p.y;
+      const gz = greenH(p.x, p.y);
+      tarr[o] = p.x; tarr[o + 1] = gz + p.z + 0.05 - w; tarr[o + 2] = p.y;
+      tarr[o + 3] = p.x; tarr[o + 4] = gz + p.z + 0.05 + w; tarr[o + 5] = p.y;
     }
     tracerGeo.attributes.position.needsUpdate = true;
     tracerGeo.setDrawRange(0, Math.max(0, n - 1) * 6);

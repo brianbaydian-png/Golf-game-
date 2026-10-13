@@ -8,5 +8,5 @@ A 9-hole 3D golf game (three.js) in a single HTML file, styled after mobile swip
 - Club sheet (blue button), shot type (orange button: Regular, Punch, Chip, Flop), binoculars to look at the target
 - Lie, distance and wind tags; hole card with score and shot number
 - Wind, fairway/rough/bunker lies, water, palms, out of bounds, green tracer with carry readout
-- Putting with the flag pulled, a red slope grid and drifting slope dots
+- Raised, tilted greens you can see, with a red grid and drifting dots; a real cup the ball drops into, with lip-outs when it is hit too hard or catches the edge
 - Settings: sound, course map, scorecard, how to play
