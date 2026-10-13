@@ -11,6 +11,8 @@ An 18-hole 3D golf game (three.js) in a single HTML file, styled after mobile sw
 - Lie, distance and wind tags; hole card with score and shot number
 - Wind, fairway/rough/bunker lies, water, palms, out of bounds, green tracer with carry readout
 - 18 holes, par 72: a pine-lined front nine (creek crossings, a lake par 3, doglegs, a lone pine in the fairway, tight Narrows) and a coastal back nine with palms (ocean hole, island green, waste bunker, split fairway, drivable par 4, creek before the 18th green); fairways change width, break up for carries and are lined with trees
+- Wedges and short irons spin back on the green; putts cut to a low camera gliding toward the hole; the green grid is red above the hole and green below it
+- Four rivals (Maya, Theo, Jules, Kai) post scores on the end-of-hole card and the scorecard; you finish 1st, T2 and so on; every hole earns XP
 - Putting: a white line shows how the putt starts to break; while you pull back, a ring shows where it will stop. Bigger cup, softer breaks
 - Raised, tilted greens you can see, with a red grid and drifting dots; a slightly oversized cup the ball drops into, with lip-outs when it is hit too hard or catches the edge
 - Settings: sound, course map, scorecard, how to play

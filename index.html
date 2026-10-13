@@ -143,6 +143,12 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .btn { font: 700 0.95rem var(--font); color: var(--ink); background: #fff; border: 0; border-radius: 10px; padding: 10px 16px; }
 .btn.primary { background: var(--orange); color: #fff; padding: 12px 30px; font: 800 1.1rem var(--font); box-shadow: 0 4px 0 var(--orange-dk); }
 .endcard { overflow: hidden; }
+.xpbadge { position: absolute; top: 14px; right: 0; background: #ff6fd8; color: #fff; font: 700 0.72rem/1.2 var(--font); padding: 6px 12px; border-radius: 6px 0 0 6px; text-align: center; animation: xpin 0.5s ease-out; z-index: 2; }
+.xpbadge b { font-size: 0.95rem; }
+@keyframes xpin { from { transform: translateX(100%); } }
+.minicard td.tp { background: #3cc4ea; color: #fff; font-weight: 800; }
+.minicard tr.par td { background: #2ec27e; color: #fff; }
+.minicard tr.me td:first-child { color: #2aa7e8; font-weight: 800; }
 .minicard { width: min(360px, 92vw); background: #fff; color: var(--ink); border-radius: 8px; overflow: hidden; box-shadow: 0 6px 18px #0004; position: relative; z-index: 1; }
 .minicard table { min-width: 0; font-size: 0.9rem; }
 .minicard th { background: var(--teal); color: #fff; padding: 4px 2px; border: 0; }
@@ -287,6 +293,7 @@ td.over { color: var(--over); font-weight: 800; }
     </div>
     <div class="overlay endcard" id="overlay" hidden>
       <div class="balloons" id="balloons" aria-hidden="true"></div>
+      <div class="xpbadge" id="ovXp"></div>
       <h2 id="ovTitle">Birdie</h2>
       <p id="ovText"></p>
       <div class="minicard" id="ovCard"></div>
@@ -573,7 +580,19 @@ td.over { color: var(--over); font-weight: 800; }
   const glc = $("gl"), ov = $("ov"), octx = ov.getContext("2d");
   let cw = 800, ch = 500, dpr = 1;
 
-  let st = { hole: 0, scores: Array(HOLES.length).fill(null) };
+  // you play against four rivals; their scores come in hole by hole as you finish each one
+  const RIVALS = [{ name: "Maya", skill: 0.35 }, { name: "Theo", skill: 0.15 }, { name: "Jules", skill: -0.1 }, { name: "Kai", skill: -0.35 }];
+  const newRound = () => ({ hole: 0, scores: Array(HOLES.length).fill(null), seed: Math.floor(Math.random() * 1e9), rivals: RIVALS.map(() => Array(HOLES.length).fill(null)) });
+  function rivalScore(r, i) {
+    const rand = rng(st.seed + r * 101 + i * 7919), sk = RIVALS[r].skill, x = rand(), par = HOLES[i].par;
+    const eagle = par === 5 ? 0.03 + sk * 0.03 : 0.004, birdie = 0.17 + sk * 0.12, parP = 0.5, bogey = 0.22 - sk * 0.1;
+    if (x < eagle) return par - 2;
+    if (x < eagle + birdie) return par - 1;
+    if (x < eagle + birdie + parP) return par;
+    if (x < eagle + birdie + parP + bogey) return par + 1;
+    return par + 2 + (rand() < 0.25 ? 1 : 0);
+  }
+  let st = newRound();
   let H, ball, prev, strokes, clubIdx = 0, aimAng = 0, phase = "aim", lie = "tee";
   let meter = { stage: 0, m: 0, power: 0 }, shot = null, roll = null, wind = { x: 0, y: 0, mph: 0 };
   let toast = null, trail = [], tick = 0, dragging = false;
@@ -944,6 +963,11 @@ td.over { color: var(--over); font-weight: 800; }
     const mult = { fairway: 1, tee: 1, fringe: 0.9, green: 0.9, rough: 0.45 }[l] ?? 1;
     const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult / golfBall().spin / c.spinMul);
     startRoll(dx * v0, dy * v0, 2.2);
+    // a well-struck wedge or short iron grabs the green and spins back toward you
+    if (stats && stats.spin > 6500 && rollMul <= 1 && (l === "green" || l === "fringe" || l === "fairway")) {
+      roll.backspin = Math.min(3.5, (stats.spin - 6500) / 1300) * (l === "fairway" ? 0.4 : 1) * golfBall().spin;
+      roll.back = { x: -dx, y: -dy };
+    }
     // a couple of bounces before it settles into the roll
     const firm = l === "rough" ? 0.5 : 1;
     roll.hop = { len: Math.max(0.6, v0 * 0.5 * firm), h: Math.min(2.2, Math.max(0.15, shot.apex * 0.07 * firm)), s: 0 };
@@ -979,6 +1003,13 @@ td.over { color: var(--over); font-weight: 800; }
 
   function startRoll(vx, vy, ts, putt = false) {
     flightCam = null;
+    if (putt) { // cut straight to a low camera behind the putt, like Golf Dreams
+      const hx = H.pin.x - ball.x, hy = H.pin.y - ball.y, hd = hyp(hx, hy) || 1, b = 2.4;
+      const bx = ball.x - hx / hd * b, by = ball.y - hy / hd * b;
+      camera.position.copy(V(bx - hy / hd * 0.35, by + hx / hd * 0.35, greenH(bx, by) + 0.42));
+      camLook.copy(V(H.pin.x, H.pin.y, greenH(H.pin.x, H.pin.y) + 0.15));
+      if (camera.fov !== 50) { camera.fov = 50; camera.updateProjectionMatrix(); }
+    }
     roll = { vx, vy, ts, putt, lipped: false };
     phase = "roll";
   }
@@ -1028,6 +1059,11 @@ td.over { color: var(--over); font-weight: 800; }
       } else if (d > CUP_R * 1.8) roll.lipped = false;
       if (d < CUP_R + 0.03 && sp < 0.45) return holed(); // hanging on the lip, it tips in
       const dec = DECEL[l] * dt;
+      if ((dec >= sp || sp < 0.05) && roll.backspin > 0.2) { // the spin takes over and draws it back
+        const v = Math.sqrt(2 * DECEL[l] * roll.backspin);
+        roll.vx = roll.back.x * v; roll.vy = roll.back.y * v; roll.backspin = 0;
+        continue;
+      }
       if (dec >= sp) { roll.vx = roll.vy = 0; return endShot(); }
       roll.vx *= (sp - dec) / sp; roll.vy *= (sp - dec) / sp;
       if (l === "green" || l === "fringe") { // gravity along the real surface of the green
@@ -1081,20 +1117,27 @@ td.over { color: var(--over); font-weight: 800; }
   function finishHole(n, pickedUp) {
     phase = "done";
     st.scores[st.hole] = n;
+    RIVALS.forEach((_, r) => { st.rivals[r][st.hole] = rivalScore(r, st.hole); });
     const diff = n - H.par, last = st.hole === HOLES.length - 1;
+    const xp = pickedUp ? 1 : 5 + Math.max(0, H.par - n) * 4 + (n === 1 ? 20 : 0);
+    let xpTotal = 0;
+    try { xpTotal = (Number(localStorage.getItem("pl-xp")) || 0) + xp; localStorage.setItem("pl-xp", String(xpTotal)); } catch (e) {}
+    $("ovXp").innerHTML = `Hole finished<br><b>+${xp}xp</b>`;
     const term = pickedUp ? "Picked up" : n === 1 ? "Hole in One!" : TERMS[diff] || `+${diff}`;
     const total = totalStrokes(), tp = totalPar();
     $("ovTitle").textContent = last ? "Round Complete" : term;
     $("ovText").textContent = last
-      ? `${term} on the 18th. You shot ${total} on a par ${tp} course (${fmtDiff(total - tp)}).`
+      ? `${term} on the 18th. You shot ${total} (${fmtDiff(total - tp)}) and finished ${place()} of ${RIVALS.length + 1}.`
       : `${n} stroke${n === 1 ? "" : "s"} on a par ${H.par}. Round so far: ${fmtDiff(total - parSoFar())}.`;
     $("ovBtn").textContent = last ? "Play again" : "Continue";
     { // the round so far, with Golf Dreams-style circled scores
       const mark = (sc, par) => sc == null ? "-" : `<span class="sx ${sc === 1 ? "a" : sc <= par - 2 ? "e" : sc === par - 1 ? "b" : sc > par ? "o" : ""}">${sc}</span>`;
       const from = st.hole < 9 ? 0 : 9, cols = HOLES.slice(from, from + 9).map((h, i) => i + from);
-      $("ovCard").innerHTML = `<table><tr><th>Hole</th>${cols.map((i) => `<th>${i + 1}</th>`).join("")}</tr>` +
-        `<tr><td>Par</td>${cols.map((i) => `<td>${HOLES[i].par}</td>`).join("")}</tr>` +
-        `<tr><td>You</td>${cols.map((i) => `<td>${mark(st.scores[i], HOLES[i].par)}</td>`).join("")}</tr></table>`;
+      const toPar = (sc) => { const d = sc.reduce((a, v, i) => a + (v == null ? 0 : v - HOLES[i].par), 0); return d === 0 ? "E" : d > 0 ? `+${d}` : `${d}`; };
+      const row = (name, sc, me) => `<tr${me ? ' class="me"' : ""}><td>${name}</td>${cols.map((i) => `<td>${mark(sc[i], HOLES[i].par)}</td>`).join("")}<td class="tp">${toPar(sc)}</td></tr>`;
+      $("ovCard").innerHTML = `<table><tr><th>Hole</th>${cols.map((i) => `<th>${i + 1}</th>`).join("")}<th></th></tr>` +
+        `<tr class="par"><td>Par</td>${cols.map((i) => `<td>${HOLES[i].par}</td>`).join("")}<td></td></tr>` +
+        row("You", st.scores, true) + RIVALS.map((r, k) => row(r.name, st.rivals[k], false)).join("") + `</table>`;
       const good = !pickedUp && diff < 0;
       $("balloons").innerHTML = good ? Array.from({ length: n === 1 ? 26 : 14 }, (_, i) => {
         const colors = ["#ff5a7a", "#ffc531", "#3cc4ea", "#7fd36a", "#b06cf0", "#ff8a3d"];
@@ -1107,12 +1150,18 @@ td.over { color: var(--over); font-weight: 800; }
     $("ovBtn").focus({ preventScroll: true });
   }
   $("ovBtn").addEventListener("click", () => {
-    if (st.hole === HOLES.length - 1) st = { hole: 0, scores: Array(HOLES.length).fill(null) };
+    if (st.hole === HOLES.length - 1) st = newRound();
     else st.hole++;
     newHole(st.hole);
   });
 
   const totalStrokes = () => st.scores.reduce((a, s) => a + (s || 0), 0);
+  function place() { // where you finished among the rivals, ties shared ("T2")
+    const mine = totalStrokes(), theirs = st.rivals.map((r) => r.reduce((a, v) => a + (v || 0), 0));
+    const better = theirs.filter((t) => t < mine).length, tied = theirs.some((t) => t === mine);
+    const n = better + 1;
+    return (tied ? "T" : "") + n + (n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th");
+  }
   const totalPar = () => HOLES.reduce((a, h) => a + h.par, 0);
   const parSoFar = () => HOLES.reduce((a, h, i) => a + (st.scores[i] != null ? h.par : 0), 0);
 
@@ -1238,7 +1287,11 @@ td.over { color: var(--over); font-weight: 800; }
       return `<tr class="head"><th>Hole</th>${cells((h, i) => `<th>${i + 1}</th>`)}<th>${label}</th>${last ? "<th>Tot</th>" : ""}</tr>` +
         `<tr><td>Yards</td>${cells((h) => `<td>${h.length}</td>`)}${tot(sum((h) => h.length))}${last ? `<td>${HOLES.reduce((a, h) => a + h.length, 0)}</td>` : ""}</tr>` +
         `<tr><td>Par</td>${cells((h) => `<td>${h.par}</td>`)}${tot(sum((h) => h.par))}${last ? `<td>${totalPar()}</td>` : ""}</tr>` +
-        `<tr><td>You</td>${you}${tot(mine || "")}${last ? `<td>${totalStrokes() || ""}</td>` : ""}</tr>`;
+        `<tr><td>You</td>${you}${tot(mine || "")}${last ? `<td>${totalStrokes() || ""}</td>` : ""}</tr>` +
+        RIVALS.map((r, k) => {
+          const sc = st.rivals[k], sub = sum((h, i) => sc[i] || 0);
+          return `<tr class="rival"><td>${r.name}</td>${cells((h, i) => `<td>${sc[i] ?? ""}</td>`)}${tot(sub || "")}${last ? `<td>${sc.reduce((a, v) => a + (v || 0), 0) || ""}</td>` : ""}</tr>`;
+        }).join("");
     };
     $("card").innerHTML = half(0, "Out", false) + half(9, "In", true);
     let best = null;
@@ -1876,10 +1929,16 @@ td.over { color: var(--over); font-weight: 800; }
     g.save(); circ(g, gr.x, gr.y, gr.r); g.clip();
     g.fillStyle = "#bde66f";
     for (let x = gr.x - gr.r; x < gr.x + gr.r; x += 3) g.fillRect(x, gr.y - gr.r, 1.5, gr.r * 2);
-    const sm = hyp(h.slope[0], h.slope[1]);
-    g.strokeStyle = "rgba(226,59,51,0.55)"; g.lineWidth = 0.04; // putting grid, one yard squares
-    for (let x = Math.ceil(gr.x - gr.r); x <= gr.x + gr.r; x++) { g.beginPath(); g.moveTo(x, gr.y - gr.r); g.lineTo(x, gr.y + gr.r); g.stroke(); }
-    for (let y = Math.ceil(gr.y - gr.r); y <= gr.y + gr.r; y++) { g.beginPath(); g.moveTo(gr.x - gr.r, y); g.lineTo(gr.x + gr.r, y); g.stroke(); }
+    // putting grid, one yard squares: red where the green sits above the hole, green where it sits below
+    const cupZ = greenHAt(h, h.pin.x, h.pin.y);
+    const seg = (x0, y0, x1, y1) => {
+      const dz = greenHAt(h, (x0 + x1) / 2, (y0 + y1) / 2) - cupZ, a = Math.min(0.9, 0.4 + Math.abs(dz) * 1.4);
+      g.strokeStyle = dz >= 0 ? `rgba(226,59,51,${a})` : `rgba(64,222,58,${a})`;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    };
+    g.lineWidth = 0.045;
+    for (let x = Math.ceil(gr.x - gr.r); x <= gr.x + gr.r; x++) for (let y = gr.y - gr.r; y < gr.y + gr.r; y += 0.5) seg(x, y, x, y + 0.5);
+    for (let y = Math.ceil(gr.y - gr.r); y <= gr.y + gr.r; y++) for (let x = gr.x - gr.r; x < gr.x + gr.r; x += 0.5) seg(x, y, x + 0.5, y);
     g.restore();
   }
 
@@ -2043,6 +2102,15 @@ td.over { color: var(--over); font-weight: 800; }
       look = V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y));
       k = 1 - Math.pow(0.35, dt);
       kLook = 1 - Math.pow(0.0005, dt);
+    } else if (phase === "roll" && roll && roll.putt) {
+      const hx = H.pin.x - ball.x, hy = H.pin.y - ball.y, hd = hyp(hx, hy) || 1;
+      const ux = hd > 0.3 ? hx / hd : flyDir.x, uy = hd > 0.3 ? hy / hd : flyDir.y;
+      const back = Math.max(1.6, 2.4 - hd) ; // trail the ball, never closer than a couple of yards to the cup
+      const bx = Math.abs(hd) < 2.4 ? H.pin.x - ux * 2.6 : ball.x - ux * back, by = Math.abs(hd) < 2.4 ? H.pin.y - uy * 2.6 : ball.y - uy * back;
+      pos = V(bx - uy * 0.35, by + ux * 0.35, greenH(bx, by) + 0.42);
+      look = V(H.pin.x, H.pin.y, greenH(H.pin.x, H.pin.y) + 0.15);
+      k = 1 - Math.pow(0.004, dt);
+      kLook = 1 - Math.pow(0.001, dt);
     } else if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
       const back = putt ? 3.4 : phase === "roll" ? 12 : 20, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 4 + ball.z * 0.85;
@@ -2229,10 +2297,10 @@ td.over { color: var(--over); font-weight: 800; }
     if ((phase === "flight" || phase === "roll") && stats && !stats.putt) {
       const b = proj(ballMesh.position);
       if (b.ok) {
-        octx.font = "800 17px 'Exo 2', 'Trebuchet MS', sans-serif"; octx.textAlign = "center"; octx.textBaseline = "middle";
+        octx.font = "800 15px 'Exo 2', 'Trebuchet MS', sans-serif"; octx.textAlign = "left"; octx.textBaseline = "middle";
         octx.lineWidth = 3; octx.strokeStyle = "rgba(0,0,0,0.35)";
         const label = `${Math.round(hyp(ball.x - stats.sx, ball.y - stats.sy))} yds`;
-        octx.strokeText(label, b.x, b.y - 26); octx.fillStyle = "#ffffff"; octx.fillText(label, b.x, b.y - 26);
+        octx.strokeText(label, b.x + 12, b.y - 12); octx.fillStyle = "#ffffff"; octx.fillText(label, b.x + 12, b.y - 12); // beside the ball, like Golf Dreams
       }
     }
 
@@ -2298,7 +2366,7 @@ td.over { color: var(--over); font-weight: 800; }
   }
 
   function start(saved) {
-    if (saved && Array.isArray(saved.scores) && saved.scores.length === HOLES.length) st = saved;
+    if (saved && Array.isArray(saved.scores) && saved.scores.length === HOLES.length && Array.isArray(saved.rivals)) st = saved;
     syncSound();
     syncBall();
     resize();
