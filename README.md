@@ -1,11 +1,12 @@
 # Pinecrest Links
 
-A 9-hole 3D golf game (three.js, behind-the-golfer camera) in a single HTML file. Open `index.html` in a browser to play.
+A 9-hole 3D golf game (three.js) in a single HTML file, styled after mobile swipe-golf games. Open `index.html` in a browser to play.
 
-- Full bag: Driver, 3W, 5W, 4–9 irons, PW, SW, LW, putter (with caddie club suggestions)
-- Swipe right on the 3D view: pull down for the backswing (depth sets power), then swipe up; drifting right fades/slices, left draws/hooks
-- Wind, fairway/rough/bunker lies, water hazards, trees, out of bounds
-- Zoomed putting view with sloped greens and lip-outs
-- Scorecard with best-round tracking
-
-Controls: drag sideways or tap the map to aim, swipe down then up on the view to hit, arrows to change club, and pick Full / Punch / Chip / Flop. Map, Card (scorecard), Sound and ? (how to play) buttons sit top right.
+- Swipe on the course: drag down from the ball for the backswing (depth sets power), then swipe back up
+- Retrace your backswing line for a straight shot along that line; the swing offset between the two curves the ball
+- After each strike: swing speed, backswing and downswing angles, and swing offset (green when inside the club's allowance)
+- Club sheet (blue button), shot type (orange button: Regular, Punch, Chip, Flop), binoculars to look at the target
+- Lie, distance and wind tags; hole card with score and shot number
+- Wind, fairway/rough/bunker lies, water, palms, out of bounds, green tracer with carry readout
+- Putting with the flag pulled, a red slope grid and drifting slope dots
+- Settings: sound, course map, scorecard, how to play
