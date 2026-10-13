@@ -45,9 +45,10 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .hc-r { background: #fff; padding: 4px 12px; display: grid; justify-items: center; align-content: center; font: 600 0.7rem var(--font); min-width: 50px; }
 .hc-r b { font: 800 1.4rem/1 var(--font); }
 .swingcards { position: absolute; top: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 5px; padding: 0 8px; pointer-events: none; }
-.sc { background: #fff; flex: 0 1 84px; min-width: 0; text-align: center; box-shadow: 0 1px 3px #0002; }
+.sc { background: #fff; flex: 0 1 70px; min-width: 0; text-align: center; box-shadow: 0 1px 3px #0002; }
 .sc small { display: block; background: var(--teal); color: #fff; font: 700 0.62rem var(--font); padding: 4px 2px; white-space: nowrap; overflow: hidden; }
-.sc b { display: block; font: 700 0.92rem var(--font); padding: 8px 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc b { display: block; font: 700 0.8rem var(--font); padding: 8px 1px; height: 1.2em; line-height: 1.2em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc b svg { height: 1.25em; width: auto; vertical-align: middle; }
 .sc .ok { color: #1fb256; } .sc .bad { color: #e5484d; } .sc em { font-style: normal; font-size: 0.78em; color: #59636b; }
 .binoc { position: absolute; right: 16px; top: calc(48% - 22px); width: 46px; height: 46px; border: 0; background: transparent; padding: 0; }
 .binoc svg { width: 46px; height: 46px; filter: drop-shadow(0 1px 2px #0005); }
@@ -118,6 +119,21 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .overlay ul { text-align: left; margin: 0; padding-left: 1.2em; max-width: 42ch; line-height: 1.45; display: grid; gap: 6px; }
 .btn { font: 700 0.95rem var(--font); color: var(--ink); background: #fff; border: 0; border-radius: 10px; padding: 10px 16px; }
 .btn.primary { background: var(--orange); color: #fff; padding: 12px 30px; font: 800 1.1rem var(--font); box-shadow: 0 4px 0 var(--orange-dk); }
+.endcard { overflow: hidden; }
+.minicard { width: min(360px, 92vw); background: #fff; color: var(--ink); border-radius: 8px; overflow: hidden; box-shadow: 0 6px 18px #0004; position: relative; z-index: 1; }
+.minicard table { min-width: 0; font-size: 0.9rem; }
+.minicard th { background: var(--teal); color: #fff; padding: 4px 2px; border: 0; }
+.minicard td { border: 0; border-top: 1px solid #e7ecef; padding: 6px 2px; }
+.minicard td:first-child, .minicard th:first-child { font-size: 0.68rem; padding-left: 8px; }
+.sx { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-weight: 800; }
+.sx.b { border: 2px solid #2b3a44; } .sx.e { border: 2px solid #2b3a44; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2b3a44; }
+.sx.a { background: #ffc531; color: #5a3b00; } .sx.o { border-radius: 3px; border: 2px solid #9aa3ab; }
+.btn.go { background: #2ec27e; color: #fff; font: 800 1.1rem var(--font); padding: 12px 44px; box-shadow: 0 4px 0 #21915d; position: relative; z-index: 1; }
+.balloons { position: absolute; inset: 0; pointer-events: none; }
+.balloons i { position: absolute; bottom: -60px; width: 34px; height: 42px; border-radius: 50% 50% 46% 46%; animation: rise linear forwards; opacity: 0.95; }
+.balloons i::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 26px; background: #fff8; }
+@keyframes rise { to { transform: translateY(-120vh) translateX(var(--drift)); } }
+@media (prefers-reduced-motion: reduce) { .balloons i { display: none; } }
 .panel { position: absolute; inset: 0; background: #0c4a63e6; display: grid; place-items: center; padding: 16px; overflow: auto; }
 .card { width: 100%; max-width: 680px; display: grid; gap: 10px; justify-items: start; background: var(--paper); color: var(--paper-ink); border-radius: 12px; padding: 14px 16px; box-sizing: border-box; }
 .card h3 { margin: 0; font: 800 1.1rem var(--font); }
@@ -149,9 +165,10 @@ td.over { color: var(--over); font-weight: 800; }
     </div>
     <div class="swingcards" id="swingCards" hidden>
       <div class="sc"><small>Swing speed</small><b id="scSpeed">0 mph</b></div>
+      <div class="sc"><small>Swing load</small><b id="scLoad">0%</b></div>
       <div class="sc"><small>Backswing</small><b id="scBack">0.0°</b></div>
       <div class="sc"><small>Downswing</small><b id="scDown">0.0°</b></div>
-      <div class="sc"><small>Swing offset</small><b id="scOff">0.0</b></div>
+      <div class="sc"><small>Impact</small><b id="scImpact"></b></div>
     </div>
 
     <button class="binoc" id="btnLook" type="button" aria-label="Look at the target" aria-pressed="false">
@@ -223,17 +240,19 @@ td.over { color: var(--over); font-weight: 800; }
       <h2>Pinecrest Links</h2>
       <ul>
         <li><b>Swing:</b> drag down anywhere on the course to take the club back (further = harder), then flick up. The club swings through for you.</li>
-        <li><b>Shape it:</b> come back up along the same line you pulled down to hit it straight. Come up a little to the right of that line for a draw (starts right, curves left), a little to the left for a fade (starts left, curves right). Further off the line hooks or slices.</li>
+        <li><b>Shape it:</b> pull straight down for a straight shot. For a fade, pull back a little to the left; for a draw, a little to the right. Then swipe up through the white fan above the ball. Swinging through the fan strikes it out of the middle; missing it hits the toe or heel, which costs distance and bends the ball more.</li>
         <li><b>Aim:</b> drag sideways on the course. The binoculars show where you are aiming.</li>
         <li><b>Clubs:</b> tap the blue button. The orange button picks Regular, Punch, Chip or Flop.</li>
         <li><b>Putting:</b> greens really slope. The red grid and the drifting dots show which way the ball will break. Too much pace and it can lip out.</li>
       </ul>
       <button class="btn primary" id="helpGo" type="button">Tee off</button>
     </div>
-    <div class="overlay" id="overlay" hidden>
+    <div class="overlay endcard" id="overlay" hidden>
+      <div class="balloons" id="balloons" aria-hidden="true"></div>
       <h2 id="ovTitle">Birdie</h2>
       <p id="ovText"></p>
-      <button class="btn primary" id="ovBtn" type="button">Next hole</button>
+      <div class="minicard" id="ovCard"></div>
+      <button class="btn go" id="ovBtn" type="button">Continue</button>
     </div>
   </div>
 </div>
@@ -627,34 +646,41 @@ td.over { color: var(--over); font-weight: 800; }
     swipe = null;
     const back = Math.atan2(b.x - s.start.x, Math.max(1, b.y - s.start.y)) * 180 / Math.PI;
     const down = Math.atan2(p.x - b.x, Math.max(1, b.y - p.y)) * 180 / Math.PI;
-    const offset = back + down;
+    // Golf Dreams: the direction you pull back sets the shape. Pull back left and swing up through the
+    // white fan for a fade; pull back right for a draw. Swinging through the fan (retracing your
+    // backswing) strikes it out of the middle; straying from it hits the toe or heel.
     const raw = Math.min(1.1, s.depth / s.full);
-    meter.power = Math.max(0.03, raw);
+    const offset = back + down; // how far the downswing strays from the backswing line
     const tol = Math.round(c.tol * golfBall().forgive * 10) / 10;
-    const over = Math.abs(offset) - tol;
-    // face = the line you pulled down (mirrored), path = your upswipe. Path right of face draws the
-    // ball (starts right, curves left); path left of face fades it (starts left, curves right).
-    const face = -back, path = down;
-    const curve = over <= 0 ? 0 : -Math.sign(offset) * Math.min(20, over * 1.6);
+    const miss = Math.max(0, Math.abs(offset) - tol);
+    const shape = Math.max(-25, Math.min(25, (down - back) / 2)); // right = fade, left = draw
+    const curve = c.putter ? 0 : Math.max(-24, Math.min(24, shape * 1.6 + Math.sign(offset) * miss * 1.4));
+    const start = c.putter ? shape * 0.5 : -shape * 0.3 + Math.sign(offset) * miss * 0.5;
+    meter.power = Math.max(0.03, raw * (1 - Math.min(0.15, miss * 0.02)));
     lastSwing = { pts: s.pts, t: performance.now() };
     pose.yawTarget = Math.max(-0.6, Math.min(0.6, down * Math.PI / 180 * 1.6));
-    const lr = (v) => `${Math.abs(v).toFixed(1)}°${v < 0 ? "L" : "R"}`;
+    const lr = (v) => `${v.toFixed(1)}°${v < 0 ? "L" : "R"}`;
     $("scSpeed").textContent = `${Math.round(c.mph * Math.max(0.15, raw))} mph`;
     $("scBack").textContent = lr(back);
     $("scDown").textContent = lr(down);
-    $("scOff").innerHTML = `<span class="${over <= 0 ? "ok" : "bad"}">${Math.abs(offset).toFixed(1)}</span><em>/${tol.toFixed(1)}</em>`;
+    $("scLoad").textContent = `${Math.round(raw * 100)}%`;
+    { // where the ball met the clubface: centre when you swing through the fan
+      const dx = Math.max(-1, Math.min(1, offset / (tol * 3))) * 13;
+      $("scImpact").innerHTML = `<svg viewBox="0 0 40 20" aria-label="${miss ? (offset > 0 ? "toe" : "heel") : "centre"} strike"><rect x="3" y="3" width="34" height="14" rx="4" fill="#e9edf0" stroke="#9aa3ab"/>` +
+        `<path d="M9 7h22M9 10h22M9 13h22" stroke="#c4cbd1"/><circle cx="${20 + dx}" cy="10" r="3.4" fill="${miss ? "#e5484d" : "#1fb256"}"/></svg>`;
+    }
     $("swingCards").hidden = false; $("tags").hidden = true; $("holecard").hidden = true;
     setSwingMsg(raw > 1.005 ? "Overswing!" : "");
     // the club swings down on its own and the ball leaves at impact; quicker for a bigger swing
-    const sw = { start: Math.max(-15, Math.min(15, face * 0.75 + path * 0.25)), curve };
+    const sw = { start: Math.max(-15, Math.min(15, start)), curve };
     pose.script = { from: Math.max(0.15, pose.theta), t: 0, hit: false, down: c.putter ? 0.22 : 0.2 - 0.06 * Math.min(1, raw),
       through: c.putter ? 0.35 : 0.45, finish: c.putter ? -0.6 : -2.2, onImpact: () => fire(sw) };
   }
 
   function shapeName(a) {
-    if (a === 0) return "Straight";
-    if (a > 0) return a <= 7 ? "Fade" : "Slice";
-    return a >= -7 ? "Draw" : "Hook";
+    if (Math.abs(a) < 3) return "Straight";
+    if (a > 0) return a < 15 ? "Fade" : "Slice";
+    return a > -15 ? "Draw" : "Hook";
   }
 
 
@@ -701,6 +727,10 @@ td.over { color: var(--over); font-weight: 800; }
     }
     shot = { P, Z, apex, tau: 0, endT, hitTree, dur: (1.1 + carry / 62) * (0.7 + 0.3 * Math.sqrt(S.apex)), carry, c, rollMul: S.roll, tree };
     flyDir = dir;
+    { // longer shots get the Golf Dreams camera: hold on the strike, then cut down to the landing area
+      const land = P(endT);
+      flightCam = carry > 70 ? { t: 0, hold: 0.75, land, dir: { x: dir.x, y: dir.y }, side: curve >= 0 ? -1 : 1, cut: false } : null;
+    }
     const SPIN = { "1W": 2700, "3W": 3600, "3i": 4100, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
     const spinMul = { full: 1, punch: 0.7, chip: 0.8, flop: 1.15 }[S === SHOTS.full ? "full" : Object.keys(SHOTS).find((k) => SHOTS[k] === S)];
     stats = { sx, sy, dir: { x: Math.cos(aimAng), y: Math.sin(aimAng) }, speed: Math.round(35 + carry * 0.52),
@@ -790,6 +820,7 @@ td.over { color: var(--over); font-weight: 800; }
   }
 
   function startRoll(vx, vy, ts, putt = false) {
+    flightCam = null;
     roll = { vx, vy, ts, putt, lipped: false };
     phase = "roll";
   }
@@ -879,7 +910,19 @@ td.over { color: var(--over); font-weight: 800; }
     $("ovText").textContent = last
       ? `${term} on the 9th. You shot ${total} on a par ${tp} course (${fmtDiff(total - tp)}).`
       : `${n} stroke${n === 1 ? "" : "s"} on a par ${H.par}. Round so far: ${fmtDiff(total - parSoFar())}.`;
-    $("ovBtn").textContent = last ? "Play again" : "Next hole";
+    $("ovBtn").textContent = last ? "Play again" : "Continue";
+    { // the round so far, with Golf Dreams-style circled scores
+      const mark = (sc, par) => sc == null ? "-" : `<span class="sx ${sc === 1 ? "a" : sc <= par - 2 ? "e" : sc === par - 1 ? "b" : sc > par ? "o" : ""}">${sc}</span>`;
+      const cols = HOLES.map((h, i) => i);
+      $("ovCard").innerHTML = `<table><tr><th>Hole</th>${cols.map((i) => `<th>${i + 1}</th>`).join("")}</tr>` +
+        `<tr><td>Par</td>${HOLES.map((h) => `<td>${h.par}</td>`).join("")}</tr>` +
+        `<tr><td>You</td>${HOLES.map((h, i) => `<td>${mark(st.scores[i], h.par)}</td>`).join("")}</tr></table>`;
+      const good = !pickedUp && diff < 0;
+      $("balloons").innerHTML = good ? Array.from({ length: n === 1 ? 26 : 14 }, (_, i) => {
+        const colors = ["#ff5a7a", "#ffc531", "#3cc4ea", "#7fd36a", "#b06cf0", "#ff8a3d"];
+        return `<i style="left:${Math.round(Math.random() * 92)}%;background:${colors[i % colors.length]};animation-duration:${(3 + Math.random() * 2.5).toFixed(2)}s;animation-delay:${(Math.random() * 1.2).toFixed(2)}s;--drift:${Math.round((Math.random() - 0.5) * 80)}px"></i>`;
+      }).join("") : "";
+    }
     if (last) saveBest(total);
     $("overlay").hidden = false;
     renderCard(); ui();
@@ -1103,7 +1146,7 @@ td.over { color: var(--over); font-weight: 800; }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1.6, 0.02, 4000);
   const camLook = new THREE.Vector3();
-  let introT = 0, flyDir = { x: 1, y: 0 }, holeGroup = null, greenMesh = null;
+  let introT = 0, flyDir = { x: 1, y: 0 }, holeGroup = null, greenMesh = null, flightCam = null;
   const srgbTex = (canvas) => { const t = new THREE.CanvasTexture(canvas); t.encoding = THREE.sRGBEncoding; return t; };
 
   // sky dome with soft clouds; it follows the camera so it always sits at the horizon
@@ -1550,7 +1593,25 @@ td.over { color: var(--over); font-weight: 800; }
     if (phase === "holed" || phase === "done") { camera.lookAt(camLook); return; }
     const dir = { x: Math.cos(aimAng), y: Math.sin(aimAng) };
     let pos, look, k, kLook = 0;
-    if (phase === "flight" || phase === "roll") {
+    if (phase === "flight" && flightCam) {
+      flightCam.t += dt;
+      if (flightCam.t < flightCam.hold) { // watch it leave the clubface and climb away
+        pos = camera.position.clone();
+        look = V(ball.x, ball.y, (ball.z || 0) * 0.6 + greenH(ball.x, ball.y));
+        camLook.lerp(look, 1 - Math.pow(0.002, dt)); camera.lookAt(camLook);
+        return;
+      }
+      const L = flightCam.land, d = flightCam.dir, side = flightCam.side;
+      if (!flightCam.cut) { // cut to a camera out by where the ball will come down
+        flightCam.cut = true;
+        camera.position.copy(V(L.x - d.x * 75 + -d.y * side * 30, L.y - d.y * 75 + d.x * side * 30, 32));
+        camLook.copy(V(ball.x, ball.y, ball.z || 0));
+      }
+      pos = V(L.x - d.x * 26 + -d.y * side * 9, L.y - d.y * 26 + d.x * side * 9, 6 + (ball.z || 0) * 0.35 + greenH(L.x, L.y));
+      look = V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y));
+      k = 1 - Math.pow(0.35, dt);
+      kLook = 1 - Math.pow(0.0005, dt);
+    } else if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
       const back = putt ? 3.4 : phase === "roll" ? 12 : 20, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 4 + ball.z * 0.85;
       pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
