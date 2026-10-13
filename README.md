@@ -1,6 +1,6 @@
 # Pinecrest Links
 
-A 9-hole 3D golf game (three.js) in a single HTML file, styled after mobile swipe-golf games. Open `index.html` in a browser to play.
+A 9-hole 3D golf game (three.js) in a single HTML file, styled after mobile swipe-golf games. Open `index.html` in a browser to play: main menu, course card and loading screen lead into the round.
 
 - Swipe on the course: drag down from the ball for the backswing (a meter beside your finger shows how far back you are, up to 110%), then swipe back up
 - Retrace your backswing line for a straight shot along that line; the swing offset between the two curves the ball

@@ -6,7 +6,7 @@
 <title>Pinecrest Links</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Luckiest+Guy&display=swap">
 <style>
 /* Layout: the 3D course fills the screen. Lie / distance / wind tags top left, hole card top right,
    swing cards replace them in flight; club button, shot button and settings at the bottom. Bright tropical look. */
@@ -37,7 +37,7 @@ button { font-family: var(--font); cursor: pointer; }
 button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 
 .tags { position: absolute; top: 10px; left: 10px; display: grid; gap: 5px; pointer-events: none; }
-.tag { display: flex; align-items: center; gap: 8px; min-width: 120px; background: #fff; border-left: 4px solid var(--c); padding: 4px 10px 4px 6px; font: 700 0.8rem var(--font); box-shadow: 0 1px 3px #0002; font-variant-numeric: tabular-nums; }
+.tag { display: flex; align-items: center; gap: 7px; min-width: 112px; background: #fff; border-left: 4px solid var(--c); padding: 3px 9px 3px 5px; font: 700 0.74rem var(--font); box-shadow: 0 1px 3px #0002; font-variant-numeric: tabular-nums; }
 .tag svg { width: 18px; height: 18px; flex: none; }
 .t-lie { --c: #2ec27e; } .t-dist { --c: #e5484d; } .t-wind { --c: #e04bd0; }
 .holecard { position: absolute; top: 10px; right: 10px; display: flex; box-shadow: 0 1px 3px #0002; pointer-events: none; }
@@ -49,16 +49,16 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .sc small { display: block; background: var(--teal); color: #fff; font: 700 0.62rem var(--font); padding: 4px 2px; white-space: nowrap; overflow: hidden; }
 .sc b { display: block; font: 700 0.92rem var(--font); padding: 8px 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sc .ok { color: #1fb256; } .sc .bad { color: #e5484d; } .sc em { font-style: normal; font-size: 0.78em; color: #59636b; }
-.binoc { position: absolute; right: 18px; top: calc(46% - 26px); width: 52px; height: 52px; border: 0; background: transparent; padding: 0; }
-.binoc svg { width: 52px; height: 52px; filter: drop-shadow(0 1px 2px #0005); }
+.binoc { position: absolute; right: 16px; top: calc(48% - 22px); width: 46px; height: 46px; border: 0; background: transparent; padding: 0; }
+.binoc svg { width: 46px; height: 46px; filter: drop-shadow(0 1px 2px #0005); }
 .binoc[aria-pressed="true"] svg { transform: scale(1.12); }
-.msg { position: absolute; left: 0; right: 0; bottom: 112px; padding: 0 16px; text-align: center; color: #fff; font: 700 0.95rem var(--font); text-shadow: 0 1px 3px #0009; pointer-events: none; }
-.clubbtn { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: 76px; height: 76px; border-radius: 50%; border: 0; background: var(--blue); color: #fff; display: grid; place-content: center; box-shadow: 0 4px 0 var(--blue-dk), 0 6px 12px #0003; }
-.clubbtn b { font: 800 1.8rem/1 var(--font); }
-.clubbtn small { font: 700 0.62rem var(--font); opacity: 0.9; }
-.shotbtn { position: absolute; left: calc(50% + 50px); bottom: 32px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--orange); color: #fff; font: 800 1.05rem var(--font); box-shadow: 0 3px 0 var(--orange-dk); }
-.gear { position: absolute; left: 12px; bottom: 20px; width: 44px; height: 44px; border: 0; background: transparent; padding: 0; }
-.gear svg { width: 34px; height: 34px; filter: drop-shadow(0 1px 2px #0006); }
+.msg { position: absolute; left: 0; right: 0; bottom: 96px; padding: 0 16px; text-align: center; color: #fff; font: 700 0.95rem var(--font); text-shadow: 0 1px 3px #0009; pointer-events: none; }
+.clubbtn { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--blue); color: #fff; display: grid; place-content: center; box-shadow: 0 3px 0 var(--blue-dk), 0 5px 10px #0003; }
+.clubbtn b { font: 800 1.45rem/1 var(--font); }
+.clubbtn small { font: 700 0.56rem var(--font); opacity: 0.9; }
+.shotbtn { position: absolute; left: calc(50% + 40px); bottom: 34px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--orange); color: #fff; font: 800 0.9rem var(--font); box-shadow: 0 2px 0 var(--orange-dk); }
+.gear { position: absolute; left: 10px; bottom: 16px; width: 40px; height: 40px; border: 0; background: transparent; padding: 0; }
+.gear svg { width: 28px; height: 28px; filter: drop-shadow(0 1px 2px #0006); }
 .clubbtn:disabled, .shotbtn:disabled { opacity: 0.6; cursor: default; }
 .stage.swinging .clubbtn, .stage.swinging .shotbtn, .stage.swinging .gear, .stage.swinging .binoc, .stage.swinging .msg { opacity: 0.12; transition: opacity 0.15s; }
 
@@ -73,10 +73,37 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .ccard[aria-pressed="true"] { outline: 3px solid #ffd23f; outline-offset: -3px; }
 .ccard.putter { background: linear-gradient(#ffc53d, #f29a1f); }
 .ccard.putter .yd { background: #c46f0b; }
+.yards { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font: 700 0.9rem var(--font); }
+.yards input { width: 20px; height: 20px; accent-color: #ffc531; }
 .menu { display: grid; gap: 8px; max-width: 420px; margin: 0 auto; }
 .menu button { border: 0; border-radius: 10px; padding: 12px; background: #eef3f6; color: var(--ink); font: 700 1rem var(--font); text-align: left; }
 .menu button.close { background: var(--blue); color: #fff; text-align: center; }
 
+.screen { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 20px; text-align: center; overflow: auto; background: linear-gradient(#8beefa, #34cdec 60%, #22b7dc); }
+.logo { font: 400 clamp(2.6rem, 13vw, 3.6rem)/0.9 "Luckiest Guy", "Exo 2", sans-serif; color: #fff; text-shadow: 0 3px 0 #1a6a92, 3px 0 0 #1a6a92, -3px 0 0 #1a6a92, 0 -3px 0 #1a6a92, 0 7px 0 #0f4f70; letter-spacing: 0.02em; position: relative; }
+.logo span { display: block; }
+.logo i { position: absolute; right: -14px; top: -8px; width: 18px; height: 13px; background: #e23b33; transform: skewY(-12deg); border-radius: 2px; }
+.spcard { width: min(280px, 84vw); background: #fff; border-radius: 12px; box-shadow: 0 6px 0 #0002, 0 10px 24px #0003; padding: 0 16px 18px; display: grid; justify-items: center; gap: 8px; }
+.spcard .ribbon { margin-top: -22px; width: 74px; height: 74px; border-radius: 50%; background: #fff; display: grid; place-items: center; box-shadow: 0 3px 8px #0002; }
+.spcard h3 { margin: 0; width: calc(100% + 32px); background: var(--blue); color: #fff; font: 400 1.4rem "Luckiest Guy", "Exo 2", sans-serif; padding: 8px 0 6px; letter-spacing: 0.03em; }
+.spcard p { margin: 0; font: 600 0.88rem var(--font); color: #4b5863; max-width: 30ch; }
+.btn.yellow { background: #ffc531; color: #6a4300; font: 400 1.35rem "Luckiest Guy", "Exo 2", sans-serif; padding: 12px 42px 8px; box-shadow: 0 5px 0 #d5960c; letter-spacing: 0.04em; }
+.badge { width: 86px; height: 86px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-content: center; box-shadow: 0 5px 0 var(--blue-dk); }
+.badge b { font: 400 1.6rem/1 "Luckiest Guy", "Exo 2", sans-serif; }
+.badge small { font: 700 0.62rem var(--font); }
+.back { position: absolute; top: 14px; left: 12px; border: 0; background: transparent; color: #fff; font: 700 1rem var(--font); text-shadow: 0 1px 2px #0005; }
+.coursecard { width: min(250px, 72vw); background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 6px 0 #0002, 0 12px 26px #0003; display: grid; gap: 6px; }
+.stage .coursecard canvas { position: static; inset: auto; width: 100%; height: auto; aspect-ratio: 5 / 6; border-radius: 6px; display: block; background: #8cbd45; touch-action: auto; }
+.coursecard .band { background: var(--orange); color: #fff; font: 700 0.75rem var(--font); padding: 4px; border-radius: 4px; }
+.stars { color: #ffc531; font-size: 1.5rem; letter-spacing: 0.08em; text-shadow: 0 2px 0 #c98f00; }
+.stars .off { color: #e6e9ec; text-shadow: none; }
+.coursecard h3 { margin: 0; font: 800 1.05rem var(--font); }
+.tipcard { width: min(320px, 88vw); background: #fff; border-radius: 10px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; text-align: left; box-shadow: 0 6px 18px #0003; }
+.tipcard b { display: block; font: 800 0.85rem var(--font); text-decoration: underline; }
+.tipcard span { font: 600 0.82rem var(--font); color: #4b5863; }
+.loadbar { width: min(220px, 70vw); height: 10px; border-radius: 5px; background: #ffffff66; overflow: hidden; }
+.loadbar i { display: block; height: 100%; width: 0; background: #fff; }
+.loadtxt { color: #fff; font: 700 0.85rem var(--font); }
 .overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: #0c4a63d9; color: #fff; text-align: center; padding: 16px; }
 .overlay h2 { font: 800 clamp(1.8rem, 7vw, 3rem)/1.05 var(--font); margin: 0; color: #fff; text-shadow: 0 3px 0 #0b3a4e; text-wrap: balance; }
 .overlay p { margin: 0; max-width: 42ch; font-weight: 600; }
@@ -129,7 +156,7 @@ td.over { color: var(--over); font-weight: 800; }
     <button class="clubbtn" id="clubBtn" type="button" aria-label="Choose club"><b id="clubName">D</b><small id="clubInfo">~250</small></button>
     <button class="shotbtn" id="shotBtn" type="button" aria-label="Shot type">R</button>
 
-    <div class="sheet" id="clubSheet" hidden><div class="sheetbody"><h3>Clubs</h3><div class="clubgrid" id="clubGrid"></div></div></div>
+    <div class="sheet" id="clubSheet" hidden><div class="sheetbody"><div class="clubgrid" id="clubGrid"></div><label class="yards"><input type="checkbox" id="showYards" checked> Show yardages</label></div></div>
     <div class="sheet" id="gearSheet" hidden>
       <div class="sheetbody">
         <div class="menu">
@@ -151,10 +178,39 @@ td.over { color: var(--over); font-weight: 800; }
         <button class="btn primary" id="cardClose" type="button">Back to the course</button>
       </section>
     </div>
-    <div class="overlay" id="help">
+    <div class="screen" id="menuScreen">
+      <div class="logo"><span>Pinecrest</span><span>Links</span><i></i></div>
+      <div class="spcard">
+        <div class="ribbon"><svg viewBox="0 0 48 48" width="46" height="46" aria-hidden="true"><path d="M14 8h20v8a10 10 0 0 1-20 0z" fill="#ffc531"/><path d="M14 11H8a7 7 0 0 0 7 8M34 11h6a7 7 0 0 1-7 8" stroke="#ffc531" stroke-width="3" fill="none"/><rect x="21" y="25" width="6" height="8" fill="#e0a51c"/><rect x="15" y="33" width="18" height="6" rx="2" fill="#2aa7e8"/></svg></div>
+        <h3>Single player</h3>
+        <p>Nine holes at Pinecrest Links. Swipe to swing and beat your best round.</p>
+        <button class="btn yellow" id="menuPlay" type="button">Play</button>
+      </div>
+      <div class="badge"><b id="menuBest">–</b><small>Best round</small></div>
+    </div>
+    <div class="screen" id="courseScreen" hidden>
+      <button class="back" id="courseBack" type="button">‹ Back</button>
+      <div class="coursecard">
+        <canvas id="coursePreview" width="250" height="300" aria-hidden="true"></canvas>
+        <div class="band">9 holes · Par 36</div>
+        <div class="stars" id="courseStars" aria-label="Course rating"></div>
+        <h3>Pinecrest Links</h3>
+      </div>
+      <button class="btn yellow" id="coursePlay" type="button">Play</button>
+    </div>
+    <div class="screen" id="loadScreen" hidden>
+      <div class="logo"><span>Pinecrest</span><span>Links</span><i></i></div>
+      <div class="tipcard">
+        <svg viewBox="0 0 40 40" width="44" height="44" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#2aa7e8"/><path d="M20 9v14" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="20" cy="30" r="2.6" fill="#fff"/></svg>
+        <div><b>Did you know?</b><span id="loadTip"></span></div>
+      </div>
+      <div class="loadbar"><i id="loadBar"></i></div>
+      <div class="loadtxt" id="loadTxt">Loading...(0%)</div>
+    </div>
+    <div class="overlay" id="help" hidden>
       <h2>Pinecrest Links</h2>
       <ul>
-        <li><b>Swing:</b> put your finger on the ball, drag down to take the club back (further = harder), then swipe back up through the ball.</li>
+        <li><b>Swing:</b> drag down anywhere on the course to take the club back (further = harder), then flick up. The club swings through for you.</li>
         <li><b>Straight shots:</b> swipe back up along the same line you pulled down. Coming up to the right of that line fades or slices the ball; to the left draws or hooks it.</li>
         <li><b>Aim:</b> drag sideways on the course. The binoculars show where you are aiming.</li>
         <li><b>Clubs:</b> tap the blue button. The orange button picks Regular, Punch, Chip or Flop.</li>
@@ -422,7 +478,7 @@ td.over { color: var(--over); font-weight: 800; }
     wind = { x: Math.cos(a) * mph, y: Math.sin(a) * mph, mph };
     $("overlay").hidden = true;
     lastSwing = null; stats = null;
-    setSwingMsg(DEFAULT_MSG);
+    setSwingMsg(i === 0 ? DEFAULT_MSG : "");
     buildScene(H);
     prepareShot();
     // fly in from behind the green to the tee
@@ -448,7 +504,7 @@ td.over { color: var(--over); font-weight: 800; }
   // ---------- swing & aim gestures on the 3D view ----------
   // Drag down anywhere on the view for the backswing (depth = power), then swipe up through the ball.
   // Sideways drift on the upswipe curves the ball. A mostly sideways drag turns your aim instead.
-  const DEFAULT_MSG = "Swipe down to take the club back, then swipe up to hit.";
+  const DEFAULT_MSG = "Drag down to swing back, then flick up to hit.";
   const STRAIGHT = 2.2; // degrees of upswipe drift that still counts as a pure strike
   let gesture = null, swipe = null, lastSwing = null, stats = null;
   // a full backswing fits in the room below where your finger lands
@@ -790,12 +846,16 @@ td.over { color: var(--over); font-weight: 800; }
     putter: '<svg viewBox="0 0 64 44"><path d="M50 3L38 32" stroke="#fff" stroke-width="3"/><rect x="14" y="32" width="30" height="7" rx="2" fill="#5b3a0a"/><circle cx="26" cy="20" r="5" fill="#fff"/></svg>',
   };
   function buildClubGrid() {
-    $("clubGrid").innerHTML = CLUBS.map((c, i) => {
+    const order = [PUTTER, ...CLUBS.map((_, i) => i).filter((i) => i !== PUTTER)];
+    $("clubGrid").innerHTML = order.map((i) => {
+      const c = CLUBS[i];
       const kind = c.putter ? "putter" : c.dist >= 200 ? "wood" : "iron";
       return `<button type="button" class="ccard${c.putter ? " putter" : ""}" data-i="${i}" aria-pressed="${i === clubIdx}" aria-label="${c.name}">` +
-        `<span class="nm">${c.short}</span>${ICON[kind]}<span class="yd">${c.putter ? "Putter" : c.dist + " yds"}</span></button>`;
+        `<span class="nm">${c.short}</span>${ICON[kind]}<span class="yd">${c.putter ? "Putter" : showYards ? c.dist + " yds" : c.name}</span></button>`;
     }).join("");
   }
+  let showYards = true;
+  $("showYards").addEventListener("change", (e) => { showYards = e.target.checked; buildClubGrid(); });
   $("clubGrid").addEventListener("click", (e) => {
     const b = e.target.closest(".ccard");
     if (!b || phase !== "aim") return;
@@ -882,6 +942,50 @@ td.over { color: var(--over); font-weight: 800; }
   $("cardClose").addEventListener("click", () => { $("cardPanel").hidden = true; });
   $("btnHelp").addEventListener("click", () => { $("gearSheet").hidden = true; $("help").hidden = false; $("helpGo").focus({ preventScroll: true }); });
   $("helpGo").addEventListener("click", () => { $("help").hidden = true; });
+
+  // ---------- menus ----------
+  const TIPS = [
+    "Swing back up along the same line you pulled down and the ball flies straight.",
+    "A Punch shot stays under the wind and runs out after it lands.",
+    "Greens tilt. Watch the red grid and the drifting dots before you putt.",
+    "Hit a putt too hard and it can catch the edge of the cup and lip out.",
+    "Use the binoculars to see where your shot will land.",
+  ];
+  function bestRound() { try { return Number(localStorage.getItem("pl-best")) || 0; } catch (e) { return 0; } }
+  function paintPreview() {
+    const c = $("coursePreview"), g = c.getContext("2d"), art = paintCourse(HOLES[0]), [b0, b1, b2, b3] = HOLES[0].bounds;
+    const sc = Math.min(c.height / (b2 - b0 + 40), c.width / (b3 - b1 + 40));
+    g.save(); g.fillStyle = "#7cad3c"; g.fillRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2); g.rotate(-Math.PI / 2);
+    const xc = (b0 + b2) / 2, yc = (b1 + b3) / 2;
+    g.drawImage(art.canvas, (art.X0 - xc) * sc, (art.Y0 - yc) * sc, art.W * sc, art.H * sc);
+    g.restore();
+  }
+  function showMenu() {
+    const b = bestRound();
+    $("menuBest").textContent = b ? `${b}` : "–";
+    $("menuScreen").hidden = false;
+  }
+  $("menuPlay").addEventListener("click", () => {
+    const b = bestRound(), stars = b ? Math.max(1, Math.min(5, Math.round(5 - (b - totalPar()) / 2))) : 0;
+    $("courseStars").innerHTML = [0, 1, 2, 3, 4].map((i) => `<span class="${i < stars ? "" : "off"}">★</span>`).join("");
+    $("menuScreen").hidden = true; $("courseScreen").hidden = false;
+    paintPreview();
+  });
+  $("courseBack").addEventListener("click", () => { $("courseScreen").hidden = true; showMenu(); });
+  $("coursePlay").addEventListener("click", () => {
+    $("courseScreen").hidden = true; $("loadScreen").hidden = false;
+    $("loadTip").textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+    const t0 = performance.now();
+    (function tickLoad() {
+      const f = Math.min(1, (performance.now() - t0) / 1400);
+      $("loadBar").style.width = `${f * 100}%`;
+      $("loadTxt").textContent = `Loading...(${Math.round(f * 100)}%)`;
+      if (f < 1) return requestAnimationFrame(tickLoad);
+      $("loadScreen").hidden = true;
+      newHole(st.hole); // fly in over the first hole
+    })();
+  });
   $("btnSound").addEventListener("click", () => {
     soundOn = !soundOn;
     try { localStorage.setItem("pl-sound", soundOn ? "on" : "off"); } catch (e) {}
@@ -1073,7 +1177,7 @@ td.over { color: var(--over); font-weight: 800; }
     for (let i = 0; i < TRAIL_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     tracerGeo.setIndex(idx);
   }
-  const tracer = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color: C(0x3dff6b), transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, fog: false, toneMapped: false }));
+  const tracer = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color: C(0x3cf25a), transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false, fog: false, toneMapped: false }));
   tracer.frustumCulled = false;
   const teePeg = new THREE.Group();
   {
@@ -1160,7 +1264,7 @@ td.over { color: var(--over); font-weight: 800; }
     clubPivot.add(stick);
     clubRig.add(clubPivot);
   }
-  clubRig.scale.setScalar(1.35);
+  clubRig.scale.setScalar(1.05);
   scene.add(clubRig);
   const pose = { theta: 0, target: 0, yaw: 0, yawTarget: 0 };
 
@@ -1369,7 +1473,7 @@ td.over { color: var(--over); font-weight: 800; }
       kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
     } else {
       // first person: eyes just behind and above the club, looking down the target line
-      const putt = club().putter, back = putt ? 3.4 : 5.0, up = putt ? 0.95 : 0.66, pitch = putt ? 0.22 : 0.093;
+      const putt = club().putter, back = putt ? 3.6 : 6.0, up = putt ? 1.0 : 0.93, pitch = putt ? 0.13 : 0.031;
       const left = putt ? 0.12 : 0.18;
       pos = V(ball.x - dir.x * back + dir.y * left, ball.y - dir.y * back - dir.x * left, up);
       pos.y += greenH(ball.x, ball.y);
@@ -1417,14 +1521,14 @@ td.over { color: var(--over); font-weight: 800; }
     const teed = lie === "tee" && (phase === "aim" || phase === "swing");
     teePeg.visible = teed; teePeg.position.copy(V(ball.x, ball.y));
     const z = (ball.z || 0) + (teed ? TEE_UP : 0), d = camera.position.distanceTo(V(ball.x, ball.y, z));
-    const s = Math.max(0.034, d * 0.0048);
+    const s = Math.max(0.026, d * 0.0045);
     ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, greenH(ball.x, ball.y) + z + s));
 
     pinGroup.scale.setScalar(Math.max(1.15, camera.position.distanceTo(pinGroup.position) / 40));
     flagMesh.rotation.y = Math.sin(tick / 14) * 0.35;
 
     // aim beam
-    const aiming = (phase === "aim" || phase === "swing") && !lookMode;
+    const aiming = false; // Golf Dreams shows no aim line; the swing fan shows direction
     aimBeam.visible = aiming;
     if (aiming) {
       const L = club().putter ? Math.max(0.6, distPin()) : 60, w = (club().putter ? 0.05 : 0.28) / 2;
@@ -1440,11 +1544,12 @@ td.over { color: var(--over); font-weight: 800; }
     const tarr = tracerGeo.attributes.position.array, n = Math.min(trail.length, TRAIL_N);
     for (let i = 0; i < n; i++) {
       const p = trail[trail.length - n + i];
-      const w = 0.12 + Math.hypot(p.x - camera.position.x, p.y - camera.position.z, p.z - camera.position.y) * 0.0055;
+      const w = 0.04 + Math.hypot(p.x - camera.position.x, p.y - camera.position.z, p.z - camera.position.y) * 0.0032;
       const o = i * 6;
-      const gz = greenH(p.x, p.y);
-      tarr[o] = p.x; tarr[o + 1] = gz + p.z + 0.05 - w; tarr[o + 2] = p.y;
-      tarr[o + 3] = p.x; tarr[o + 4] = gz + p.z + 0.05 + w; tarr[o + 5] = p.y;
+      // the ribbon spreads sideways, so seen from behind it reads as a wide beam like the video
+      const gz = greenH(p.x, p.y) + p.z + 0.05, sx = -flyDir.y * w, sy = flyDir.x * w;
+      tarr[o] = p.x - sx; tarr[o + 1] = gz; tarr[o + 2] = p.y - sy;
+      tarr[o + 3] = p.x + sx; tarr[o + 4] = gz; tarr[o + 5] = p.y + sy;
     }
     tracerGeo.attributes.position.needsUpdate = true;
     tracerGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
@@ -1592,6 +1697,7 @@ td.over { color: var(--over); font-weight: 800; }
     window.addEventListener("resize", resize);
     newHole(st.hole);
     requestAnimationFrame(loop);
+    showMenu();
   }
 
   window.claude?.hot?.snapshot?.(() => st);
