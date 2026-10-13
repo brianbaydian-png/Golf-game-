@@ -8,4 +8,4 @@ A 9-hole 3D golf game (three.js, behind-the-golfer camera) in a single HTML file
 - Zoomed putting view with sloped greens and lip-outs
 - Scorecard with best-round tracking
 
-Controls: drag sideways or tap the map to aim, swipe down then up on the view to hit, arrows to change club (keyboard: `←`/`→` aim, `↑`/`↓` club).
+Controls: drag sideways or tap the map to aim, swipe down then up on the view to hit, arrows to change club, and pick Full / Punch / Chip / Flop. Map, Card (scorecard), Sound and ? (how to play) buttons sit top right.
