@@ -60,6 +60,7 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .gear { position: absolute; left: 12px; bottom: 20px; width: 44px; height: 44px; border: 0; background: transparent; padding: 0; }
 .gear svg { width: 34px; height: 34px; filter: drop-shadow(0 1px 2px #0006); }
 .clubbtn:disabled, .shotbtn:disabled { opacity: 0.6; cursor: default; }
+.stage.swinging .clubbtn, .stage.swinging .shotbtn, .stage.swinging .gear, .stage.swinging .binoc, .stage.swinging .msg { opacity: 0.12; transition: opacity 0.15s; }
 
 .sheet { position: absolute; inset: 0; background: #0005; display: flex; align-items: flex-end; }
 .sheetbody { background: #fff; width: 100%; max-height: 72%; overflow: auto; padding: 14px 14px 20px; border-radius: 14px 14px 0 0; box-sizing: border-box; }
@@ -430,7 +431,7 @@ td.over { color: var(--over); font-weight: 800; }
   const STRAIGHT = 2.2; // degrees of upswipe drift that still counts as a pure strike
   let gesture = null, swipe = null, lastSwing = null, stats = null;
   // a full backswing fits in the room below where your finger lands
-  const depthFor = (y) => Math.max(90, Math.min(ch * 0.34, (ch - y - 24) / 1.1));
+  const depthFor = (y) => Math.max(110, Math.min(ch * 0.48, (ch - y - 14) / 1.1));
 
   function setSwingMsg(text, good) {
     $("msg").textContent = text;
@@ -486,7 +487,7 @@ td.over { color: var(--over); font-weight: 800; }
       if (depth > swipe.depth) { swipe.depth = depth; swipe.bottom = p; }
       else if (swipe.depth > 15 && swipe.depth - depth > 12) { swipe.stage = "through"; swipe.upT = p.t; }
       const ratio = Math.min(1.1, Math.max(0, swipe.depth) / swipe.full);
-      pose.target = Math.min(ratio, 1.1) * (club().putter ? 0.7 : 0.95);
+      pose.target = Math.min(ratio, 1.1) * (club().putter ? 0.8 : 1.5);
       pose.yawTarget = Math.max(-0.6, Math.min(0.6, (p.x - swipe.start.x) / swipe.full * 1.1));
       swipe.curAng = -Math.atan2(swipe.bottom.x - swipe.start.x, Math.max(1, swipe.bottom.y - swipe.start.y)) * 180 / Math.PI;
     }
@@ -495,7 +496,7 @@ td.over { color: var(--over); font-weight: 800; }
       const ang = Math.atan2(p.x - swipe.bottom.x, Math.max(1, swipe.bottom.y - p.y));
       swipe.curAng = ang * 180 / Math.PI;
       pose.yawTarget = Math.max(-0.6, Math.min(0.6, ang * 1.6));
-      pose.target = Math.max(0, (p.y - swipe.start.y) / swipe.full) * (club().putter ? 0.7 : 0.95);
+      pose.target = Math.max(0, (p.y - swipe.start.y) / swipe.full) * (club().putter ? 0.8 : 1.5);
       if (p.y <= swipe.start.y) strike(p);
     }
   }
@@ -577,14 +578,17 @@ td.over { color: var(--over); font-weight: 800; }
       y: sy + dir.y * carry * t + right.y * curve * t * t + drift.y * t,
     });
     const apex = c.apex * S.apex * Math.min(1, 0.4 + power * 0.6) * (carry < 40 && S === SHOTS.full ? 0.6 : 1);
+    // height along the flight (u = share of the carry): climbs to a late apex, then falls more steeply
+    const APEX_AT = 0.6;
+    const Z = (u) => u < APEX_AT ? apex * (1 - (1 - u / APEX_AT) ** 2) : apex * (1 - ((u - APEX_AT) / (1 - APEX_AT)) ** 1.7);
     let endT = 1, hitTree = false;
     outer: for (let i = 1; i <= 120; i++) {
-      const t = i / 120, p = P(t), z = 4 * apex * t * (1 - t);
+      const t = i / 120, p = P(t), z = Z(t);
       for (const tr of H.trees) {
         if (hyp(p.x - tr[0], p.y - tr[1]) < tr[2] && z < tr[3]) { endT = t; hitTree = true; break outer; }
       }
     }
-    shot = { P, apex, t: 0, endT, hitTree, dur: (0.7 + carry / 170) * (0.75 + 0.25 * Math.sqrt(S.apex)), carry, c, rollMul: S.roll };
+    shot = { P, Z, apex, tau: 0, endT, hitTree, dur: (1.1 + carry / 62) * (0.7 + 0.3 * Math.sqrt(S.apex)), carry, c, rollMul: S.roll };
     flyDir = dir;
     const SPIN = { "1W": 2700, "3W": 3600, "5W": 4300, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
     const spinMul = { full: 1, punch: 0.7, chip: 0.8, flop: 1.15 }[S === SHOTS.full ? "full" : Object.keys(SHOTS).find((k) => SHOTS[k] === S)];
@@ -769,6 +773,7 @@ td.over { color: var(--over); font-weight: 800; }
 
   function ui() {
     const c = club(), busy = phase !== "aim";
+    document.querySelector(".stage").classList.toggle("swinging", phase === "swing");
     if (!shotAllowed(shotType)) shotType = "full";
     $("clubName").textContent = c.short;
     $("clubInfo").textContent = c.putter ? `${Math.round(puttMax() * 3)} ft` : `~${Math.round(carryEst())}`;
@@ -1275,16 +1280,17 @@ td.over { color: var(--over); font-weight: 800; }
   function updateCamera(dt) {
     if (phase === "holed" || phase === "done") { camera.lookAt(camLook); return; }
     const dir = { x: Math.cos(aimAng), y: Math.sin(aimAng) };
-    let pos, look, k;
+    let pos, look, k, kLook = 0;
     if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
-      const back = putt ? 3.4 : phase === "roll" ? 12 : 18, up = putt ? 1.3 : 7 + ball.z * 0.9;
+      const back = putt ? 3.4 : phase === "roll" ? 14 : 34, up = putt ? 1.3 : 9 + ball.z * 0.35;
       pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
-      look = V(ball.x, ball.y, ball.z || 0);
-      k = 1 - Math.pow(putt ? 0.02 : 0.0004, dt);
+      look = V(ball.x, ball.y, (ball.z || 0) * 0.8);
+      k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.05 : 0.25, dt); // camera trails behind
+      kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
     } else {
       // first person: eyes just behind and above the club, looking down the target line
-      const putt = club().putter, back = putt ? 2.2 : 3.0, up = putt ? 0.6 : 0.75, pitch = 0.096;
+      const putt = club().putter, back = putt ? 2.2 : 3.0, up = putt ? 0.6 : 0.75, pitch = 0.19;
       const left = putt ? 0.12 : 0.18;
       pos = V(ball.x - dir.x * back + dir.y * left, ball.y - dir.y * back - dir.x * left, up);
       look = new THREE.Vector3(pos.x + dir.x * 10 * Math.cos(pitch), pos.y - 10 * Math.sin(pitch), pos.z + dir.y * 10 * Math.cos(pitch));
@@ -1296,7 +1302,7 @@ td.over { color: var(--over); font-weight: 800; }
       k = 1 - Math.pow(0.0005, dt);
     }
     if (introT > 0) { introT -= dt; k = 1 - Math.pow(0.12, dt); }
-    camera.position.lerp(pos, k); camLook.lerp(look, k);
+    camera.position.lerp(pos, k); camLook.lerp(look, Math.max(k, kLook));
     camera.lookAt(camLook);
   }
 
@@ -1398,6 +1404,26 @@ td.over { color: var(--over); font-weight: 800; }
       }
     }
 
+    // swing meter: how far back you have taken it, with the 100% mark
+    if (swipe) {
+      const full = swipe.full, ratio = Math.min(1.1, Math.max(0, swipe.depth) / full);
+      const gx = swipe.start.x > cw - 90 ? swipe.start.x - 58 : swipe.start.x + 46, gy = swipe.start.y, gh = full * 1.1;
+      octx.fillStyle = "rgba(255,255,255,0.35)"; octx.fillRect(gx, gy, 14, gh);
+      octx.fillStyle = "rgba(226,59,51,0.35)"; octx.fillRect(gx, gy + full, 14, gh - full);
+      octx.fillStyle = ratio > 1.005 ? "#e23b33" : "#3dd66b"; octx.fillRect(gx, gy, 14, gh * ratio / 1.1);
+      octx.strokeStyle = "#ffffff"; octx.lineWidth = 1.5; octx.strokeRect(gx + 0.5, gy + 0.5, 13, gh - 1);
+      octx.fillStyle = "#ffffff"; octx.fillRect(gx - 5, gy + full - 1, 24, 3);
+      for (const f of [0.25, 0.5, 0.75]) octx.fillRect(gx, gy + full * f, 6, 1.5);
+      octx.font = "800 15px 'Exo 2', 'Trebuchet MS', sans-serif"; octx.textBaseline = "middle"; octx.textAlign = "left";
+      octx.lineWidth = 3; octx.strokeStyle = "rgba(0,0,0,0.35)";
+      const label = `${Math.round(ratio * 100)}%`, ly = Math.max(gy + 10, gy + gh * ratio / 1.1);
+      octx.strokeText(label, gx + 20, ly); octx.fillStyle = "#ffffff"; octx.fillText(label, gx + 20, ly);
+      // faint finger trail
+      octx.globalAlpha = 0.45; octx.strokeStyle = "#ffffff"; octx.lineWidth = 5; octx.lineCap = "round"; octx.lineJoin = "round";
+      octx.beginPath(); swipe.pts.forEach((q, i) => (i ? octx.lineTo(q.x, q.y) : octx.moveTo(q.x, q.y))); octx.stroke();
+      octx.globalAlpha = 1;
+    }
+
     // carry so far, floating beside the ball
     if ((phase === "flight" || phase === "roll") && stats && !stats.putt) {
       const b = proj(ballMesh.position);
@@ -1438,11 +1464,13 @@ td.over { color: var(--over); font-weight: 800; }
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     tick++;
     if (phase === "flight") {
-      shot.t = Math.min(shot.endT, shot.t + dt / shot.dur);
-      const p = shot.P(shot.t);
-      ball = { x: p.x, y: p.y, z: 4 * shot.apex * shot.t * (1 - shot.t) };
+      // the ball leaves fast and slows down: distance covered eases out over the flight time
+      shot.tau = Math.min(1, shot.tau + dt / shot.dur);
+      const u = Math.min(shot.endT, 1 - Math.pow(1 - shot.tau, 1.6));
+      const p = shot.P(u);
+      ball = { x: p.x, y: p.y, z: shot.Z(u) };
       trail.push({ x: p.x, y: p.y, z: ball.z });
-      if (shot.t >= shot.endT) landShot();
+      if (u >= shot.endT) landShot();
     } else if (phase === "roll") {
       stepRoll();
       if (tick % 2 === 0) trail.push({ x: ball.x, y: ball.y, z: 0 });
