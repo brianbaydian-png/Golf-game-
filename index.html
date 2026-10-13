@@ -72,8 +72,31 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .ccard svg { width: 100%; max-width: 64px; height: 42px; }
 .ccard .yd { width: 100%; background: #4a148c; font: 700 0.72rem var(--font); padding: 4px 0; margin-top: 4px; }
 .ccard[aria-pressed="true"] { outline: 3px solid #ffd23f; outline-offset: -3px; }
-.ccard.putter { background: linear-gradient(#ffc53d, #f29a1f); }
-.ccard.putter .yd { background: #c46f0b; }
+.ccard .yd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menurow { display: flex; align-items: center; gap: 22px; }
+.bagbtn { width: 86px; height: 86px; border: 0; border-radius: 16px; background: #ffc531; color: #6a4300; display: grid; place-items: center; align-content: center; gap: 2px; box-shadow: 0 5px 0 #d5960c; font: 400 0.95rem "Luckiest Guy", "Exo 2", sans-serif; letter-spacing: 0.03em; }
+.screen.bagscreen { place-content: start center; justify-items: stretch; grid-template-columns: min(520px, 100%); gap: 10px; padding: 46px 16px 24px; box-sizing: border-box; }
+.bagtitle { margin: 0; font: 400 1.8rem "Luckiest Guy", "Exo 2", sans-serif; color: #fff; text-shadow: 0 3px 0 #1a6a92; letter-spacing: 0.03em; }
+.bagtop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.statcard { background: #6f7f8c; border-radius: 6px; overflow: hidden; text-align: left; color: #fff; box-shadow: 0 4px 0 #0002; }
+.statcard header { background: #fff; color: var(--ink); text-align: center; padding: 6px 6px 5px; }
+.statcard header b { display: block; font: 800 1rem/1.15 var(--font); }
+.statcard header small { font: 600 0.72rem var(--font); color: #4b5863; }
+.statcard .tierchip { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 9px; color: #fff; font: 700 0.62rem var(--font); }
+.statcard .bars { padding: 6px 10px 10px; display: grid; gap: 5px; }
+.statcard label { display: grid; gap: 2px; font: 700 0.74rem var(--font); }
+.statcard .bar { height: 6px; background: #4c5965; border-radius: 3px; overflow: hidden; }
+.statcard .bar i { display: block; height: 100%; background: #fff; border-radius: 3px; }
+.statcard .bar i.up { background: #6ee38a; } .statcard .bar i.dn { background: #ff8a7a; }
+.bagview { background: linear-gradient(#bff2ff, #8fdcf0 70%, #7cc957 70%, #6cb84a); border-radius: 6px; overflow: hidden; min-height: 200px; position: relative; box-shadow: 0 4px 0 #0002; }
+.stage .bagview canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: auto; }
+.bagopts { background: #ffffffd9; border-radius: 8px; padding: 6px 8px 8px; text-align: left; }
+.bagopts small { font: 800 0.78rem var(--font); color: #2b3a44; }
+.optrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin-top: 5px; }
+.bagscreen .clubgrid { width: 100%; }
+.optrow .ccard .yd { font-size: 0.64rem; }
+.ccard .eq { position: absolute; top: 4px; right: 4px; background: #1fb256; color: #fff; font: 800 0.56rem var(--font); padding: 1px 4px; border-radius: 3px; }
+@media (max-width: 380px) { .bagtop { grid-template-columns: 1fr; } .bagview { min-height: 170px; } }
 .yards { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font: 700 0.9rem var(--font); }
 .yards input { width: 20px; height: 20px; accent-color: #ffc531; }
 .ballgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 460px; margin: 0 auto; }
@@ -189,6 +212,7 @@ td.over { color: var(--over); font-weight: 800; }
       <div class="sheetbody">
         <div class="menu">
           <h3>Settings</h3>
+          <button type="button" id="btnBag">My bag</button>
           <button type="button" id="btnBall">Golf ball: Classic</button>
           <button type="button" id="btnSound">Sound: on</button>
           <button type="button" id="btnMap">Course map: off</button>
@@ -215,7 +239,20 @@ td.over { color: var(--over); font-weight: 800; }
         <p>Nine holes at Pinecrest Links. Swipe to swing and beat your best round.</p>
         <button class="btn yellow" id="menuPlay" type="button">Play</button>
       </div>
-      <div class="badge"><b id="menuBest">–</b><small>Best round</small></div>
+      <div class="menurow">
+        <button class="bagbtn" id="menuBag" type="button"><svg viewBox="0 0 40 48" width="34" height="40" aria-hidden="true"><path d="M13 4l3 16M20 2v18M27 4l-3 16" stroke="#fff" stroke-width="3" stroke-linecap="round"/><rect x="9" y="18" width="22" height="28" rx="6" fill="#e23b33"/><rect x="9" y="24" width="22" height="5" fill="#fff"/><rect x="13" y="33" width="14" height="8" rx="2" fill="#b22a23"/></svg><span>My Bag</span></button>
+        <div class="badge"><b id="menuBest">–</b><small>Best round</small></div>
+      </div>
+    </div>
+    <div class="screen bagscreen" id="bagScreen" hidden>
+      <button class="back" id="bagBack" type="button">‹ Back</button>
+      <h2 class="bagtitle">My Bag</h2>
+      <div class="bagtop">
+        <div class="statcard" id="bagStats"></div>
+        <div class="bagview"><canvas id="bagGL" aria-hidden="true"></canvas></div>
+      </div>
+      <div class="bagopts"><small id="bagOptsLabel">Models</small><div class="optrow" id="bagOpts"></div></div>
+      <div class="clubgrid" id="bagGrid"></div>
     </div>
     <div class="screen" id="courseScreen" hidden>
       <button class="back" id="courseBack" type="button">‹ Back</button>
@@ -243,6 +280,7 @@ td.over { color: var(--over); font-weight: 800; }
         <li><b>Shape it:</b> pull straight down for a straight shot. For a fade, pull back clearly to the left; for a draw, clearly to the right. A slight tilt barely bends it; a big angle bends it a lot. Then swipe up through the white fan above the ball. Swinging through the fan strikes it out of the middle; missing it hits the toe or heel, which costs distance and bends the ball more.</li>
         <li><b>Aim:</b> drag sideways on the course. The binoculars show where you are aiming.</li>
         <li><b>Clubs:</b> tap the blue button. The orange button picks Regular, Punch, Chip or Flop.</li>
+        <li><b>My Bag:</b> on the main menu (or in Settings), pick a model for every club. Each one looks different and has its own distance, loft, curl (how much it shapes), spin, forgiveness and recovery from rough and sand.</li>
         <li><b>Putting:</b> greens really slope. The red grid and the drifting dots show which way the ball will break. Too much pace and it can lip out.</li>
       </ul>
       <button class="btn primary" id="helpGo" type="button">Tee off</button>
@@ -284,6 +322,44 @@ td.over { color: var(--over); font-weight: 800; }
   const TOL = { MD: 3.6, "1W": 4, "3W": 4.3, "3i": 4.6, PW: 6, SW: 6.3, LW: 6.5, PT: 8 }; // straight-swing allowance in degrees
   CLUBS.forEach((c) => { c.short = SHORT[c.id] || c.id; c.mph = SWING_MPH[c.id]; c.tol = TOL[c.id] || 5; });
   const PUTTER = CLUBS.length - 1;
+  // Your bag (Golf Dreams style): every slot comes in several models with their own look and feel.
+  // dist: carry, loft: launch and height, curl: how much a shaped swing bends it, spin: how quickly
+  // it stops, forgive: how wide a swing still flies straight, recovery: how well it copes with rough and sand.
+  // tier sets the colour of the card: 0 common, 1 rare, 2 epic, 3 legendary.
+  const SETS = [
+    { key: "classic", name: "Classic", tier: 0, head: 0xd6dbe0, accent: 0x59616a, shaft: 0xf2f2f2, grip: 0x2b2f36, back: "blade", putt: "blade",
+      dist: 1, loft: 1, curl: 1, spin: 1, forgive: 1, recovery: 0.3 },
+    { key: "viper", name: "Black Viper", tier: 1, head: 0x24262b, accent: 0xa66bff, shaft: 0x1b1c20, grip: 0x7b3fe4, back: "cavity", putt: "mallet",
+      dist: 1.05, loft: 0.9, curl: 0.75, spin: 0.85, forgive: 0.85, recovery: 0.25 },
+    { key: "blaze", name: "Red Blaze", tier: 1, head: 0xd9432f, accent: 0xffe2d6, shaft: 0xe9e9e9, grip: 0x1a1a1a, back: "blade", putt: "blade",
+      dist: 0.98, loft: 1.08, curl: 1.45, spin: 1.3, forgive: 0.9, recovery: 0.45 },
+    { key: "kitty", name: "Pink Kitty", tier: 2, head: 0xf47cc3, accent: 0xffffff, shaft: 0xffd6ec, grip: 0xff4fa7, back: "cavity", putt: "round",
+      dist: 1.01, loft: 1.06, curl: 1.1, spin: 1.05, forgive: 1.45, recovery: 0.6 },
+    { key: "glacier", name: "Glacier", tier: 2, head: 0xa8e6ff, accent: 0x1769b5, shaft: 0xdff4ff, grip: 0x1769b5, back: "cavity", putt: "mallet",
+      dist: 1.02, loft: 1, curl: 1.2, spin: 1.15, forgive: 1.15, recovery: 0.95 },
+    { key: "sunburst", name: "Sunburst", tier: 3, head: 0xf6c431, accent: 0x6b4100, shaft: 0x2b2b2b, grip: 0x141414, back: "cavity", putt: "round",
+      dist: 1.07, loft: 1.02, curl: 1.35, spin: 1.2, forgive: 1.25, recovery: 0.75 },
+  ];
+  let bag = {};
+  try { bag = JSON.parse(localStorage.getItem("pl-bag") || "{}") || {}; } catch (e) { bag = {}; }
+  const modelOf = (c) => SETS.find((m) => m.key === bag[c.id]) || SETS[0];
+  // a club's numbers with a given model in it
+  function specFor(c, m) {
+    const b = c.base || c;
+    const forgive = m.forgive * (c.putter ? { blade: 1, mallet: 1.2, round: 1.3 }[m.putt] : 1); // mallets are kinder on the greens
+    return {
+      dist: c.putter ? 0 : Math.round(b.dist * m.dist / 5) * 5, apex: b.apex * m.loft, launch: b.launch + (m.loft - 1) * 12,
+      tol: Math.round(b.tol * forgive * 10) / 10, forgive, curl: m.curl, spinMul: m.spin, recovery: m.recovery,
+    };
+  }
+  function applyBag() {
+    CLUBS.forEach((c) => {
+      if (!c.base) c.base = { dist: c.dist, apex: c.apex, tol: c.tol, launch: c.launch };
+      c.model = modelOf(c);
+      Object.assign(c, specFor(c, c.model));
+    });
+  }
+  applyBag();
   // golf balls: each trades distance, spin (how quickly it stops) and forgiveness (how wide a swing still flies straight)
   const BALLS = [
     { name: "Classic", color: 0xffffff, speed: 1, spin: 1, forgive: 1 },
@@ -294,7 +370,7 @@ td.over { color: var(--over); font-weight: 800; }
   let ballIdx = 0;
   try { ballIdx = Math.max(0, Math.min(BALLS.length - 1, Number(localStorage.getItem("pl-ball")) || 0)); } catch (e) {}
   const golfBall = () => BALLS[ballIdx];
-  const MAX_STROKES = 10, CUP_R = 0.065;
+  const MAX_STROKES = 10, CUP_R = 0.085; // a little bigger than a real cup, like Golf Dreams
   // rolling deceleration by surface, yd/s^2
   const DECEL = { green: 0.6, fringe: 1.6, fairway: 1.4, tee: 1.4, rough: 4.5 };
   const LIE_NAME = { tee: "Tee box", fairway: "Fairway", rough: "Rough", sand: "Bunker", green: "Green", fringe: "Fringe", water: "Water", ob: "Out of bounds" };
@@ -402,6 +478,10 @@ td.over { color: var(--over); font-weight: 800; }
 
   function lieFactor(lie, c) {
     if (c.putter) return 1;
+    const f = lieBase(lie, c);
+    return lie === "rough" || lie === "sand" ? f + (1 - f) * (c.recovery || 0) * 0.5 : f;
+  }
+  function lieBase(lie, c) {
     // what each lie lets you get out of a club, shown on the lie tag like "Fairway (~95%)"
     switch (lie) {
       case "fairway": return c.id === "1W" ? 0.88 : 0.95;
@@ -463,7 +543,7 @@ td.over { color: var(--over); font-weight: 800; }
     flop: { name: "Flop", carry: 0.68, apex: 1.7, roll: 0.15, wind: 1.3, launch: 14, miss: 1.4 },
   };
   let shotType = "full";
-  const shotAllowed = (t, c = club()) => !c.putter && (t === "full" || t === "punch" || (t === "chip" && !c.wood && c.dist <= 195) || (t === "flop" && c.dist <= 130));
+  const shotAllowed = (t, c = club()) => !c.putter && (t === "full" || t === "punch" || (t === "chip" && !c.wood && c.base.dist <= 195) || (t === "flop" && c.base.dist <= 130));
   const shotSpec = () => SHOTS[shotAllowed(shotType) ? shotType : "full"];
   const carryEst = () => club().putter ? puttMax() : club().dist * lieFactor(lie, club()) * shotSpec().carry * golfBall().speed;
   const fmtDist = (yd) => (onGreenish() || yd < 10 ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`);
@@ -611,7 +691,7 @@ td.over { color: var(--over); font-weight: 800; }
     const depth = p.y - swipe.start.y;
     if (swipe.stage === "back") {
       if (depth > swipe.depth) { swipe.depth = depth; swipe.bottom = p; }
-      else if (swipe.depth > 15 && swipe.depth - depth > 12) { swipe.stage = "through"; swipe.upT = p.t; }
+      else if (swipe.depth > 15 && swipe.depth - depth > 6) { swipe.stage = "through"; swipe.upT = p.t; }
       const ratio = Math.min(1, Math.max(0, swipe.depth) / swipe.full);
       pose.target = Math.min(ratio, 1.1) * (club().putter ? 0.8 : 1.5);
       pose.yawTarget = Math.max(-0.6, Math.min(0.6, (p.x - swipe.start.x) / swipe.full * 1.1));
@@ -622,14 +702,13 @@ td.over { color: var(--over); font-weight: 800; }
       const ang = Math.atan2(p.x - swipe.bottom.x, Math.max(1, swipe.bottom.y - p.y));
       swipe.curAng = ang * 180 / Math.PI;
       pose.yawTarget = Math.max(-0.6, Math.min(0.6, ang * 1.6));
-      if (swipe.bottom.y - p.y >= Math.max(30, swipe.depth * 0.18)) strike(p);
+      if (swipe.bottom.y - p.y >= 16) strike(p); // a tiny flick up is all it takes
     }
   }
   function endSwing(p) {
-    if (swipe.stage === "through") return strike(p);
-    cancelSwing(swipe.stage === "back"
-      ? "No swing. After pulling back, swipe up through the ball to hit it."
-      : "No swing. Swipe all the way up through the ball.");
+    // letting go at the top of the backswing, without flicking up, resets the shot
+    if (swipe.stage === "through" && swipe.bottom.y - p.y >= 10) return strike(p);
+    cancelSwing("Swing reset. Pull back, then flick up a little to hit it.");
   }
   function cancelSwing(msg) {
     swipe = null;
@@ -646,7 +725,9 @@ td.over { color: var(--over); font-weight: 800; }
     const s = swipe, b = s.bottom, c = club();
     swipe = null;
     const back = Math.atan2(b.x - s.start.x, Math.max(1, b.y - s.start.y)) * 180 / Math.PI;
-    const down = Math.atan2(p.x - b.x, Math.max(1, b.y - p.y)) * 180 / Math.PI;
+    const rawDown = Math.atan2(p.x - b.x, Math.max(1, b.y - p.y)) * 180 / Math.PI;
+    // a tiny flick can't show much direction, so short flicks count as coming back along the backswing line
+    const down = -back + (rawDown + back) * Math.min(1, Math.max(0, b.y - p.y) / 45);
     // Golf Dreams: the direction you pull back sets the shape. Pull back left and swing up through the
     // white fan for a fade; pull back right for a draw. Swinging through the fan (retracing your
     // backswing) strikes it out of the middle; straying from it hits the toe or heel.
@@ -656,8 +737,8 @@ td.over { color: var(--over); font-weight: 800; }
     const miss = Math.max(0, Math.abs(offset) - tol);
     const line = Math.max(-35, Math.min(35, (down - back) / 2)); // right = fade, left = draw
     const shape = Math.sign(line) * Math.max(0, Math.abs(line) - 4); // small tilts do nothing
-    const curve = c.putter ? 0 : Math.max(-20, Math.min(20, shape * 0.6 + Math.sign(offset) * miss * 0.9));
-    const start = c.putter ? line * 0.4 : -shape * 0.12 + Math.sign(offset) * miss * 0.35;
+    const curve = c.putter ? 0 : Math.max(-20, Math.min(20, shape * 0.6 * c.curl + Math.sign(offset) * miss * 0.9));
+    const start = c.putter ? line * 0.4 / c.forgive : -shape * 0.12 * c.curl + Math.sign(offset) * miss * 0.35;
     meter.power = Math.max(0.03, raw * (1 - Math.min(0.15, miss * 0.02)));
     lastSwing = { pts: s.pts, t: performance.now() };
     pose.yawTarget = Math.max(-0.6, Math.min(0.6, down * Math.PI / 180 * 1.6));
@@ -736,7 +817,7 @@ td.over { color: var(--over); font-weight: 800; }
     const SPIN = { MD: 2300, "1W": 2700, "3W": 3600, "3i": 4100, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
     const spinMul = { full: 1, punch: 0.7, chip: 0.8, flop: 1.15 }[S === SHOTS.full ? "full" : Object.keys(SHOTS).find((k) => SHOTS[k] === S)];
     stats = { sx, sy, dir: { x: Math.cos(aimAng), y: Math.sin(aimAng) }, speed: Math.round(35 + carry * 0.52),
-      spin: Math.round(SPIN[c.id] * Math.sqrt(power) * spinMul * (lie === "rough" ? 0.7 : lie === "sand" ? 0.85 : 1) / 50) * 50,
+      spin: Math.round(SPIN[c.id] * c.spinMul * Math.sqrt(power) * spinMul * (lie === "rough" ? 0.7 : lie === "sand" ? 0.85 : 1) / 50) * 50,
       apexFt: Math.round(apex * 3),
       launch: Math.max(3, c.launch + S.launch + (lie === "sand" ? 3 : 0) + (power > 1 ? 1 : 0)),
       shape: S === SHOTS.full ? shapeName(a) : `${S.name} ${shapeName(a).toLowerCase()}`, carry: null, side: null };
@@ -786,7 +867,7 @@ td.over { color: var(--over); font-weight: 800; }
     if (stats && !stats.putt && !(toast && toast.t > 40)) toast = { text: stats.shape, t: 110 };
     if (l === "sand") { toast = { text: "In the bunker.", t: 120 }; return endShot(); }
     const mult = { fairway: 1, tee: 1, fringe: 0.9, green: 0.9, rough: 0.45 }[l] ?? 1;
-    const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult / golfBall().spin);
+    const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult / golfBall().spin / c.spinMul);
     startRoll(dx * v0, dy * v0, 2.2);
     // a couple of bounces before it settles into the roll
     const firm = l === "rough" ? 0.5 : 1;
@@ -946,18 +1027,50 @@ td.over { color: var(--over); font-weight: 800; }
     clubIdx = Math.max(0, Math.min(PUTTER, clubIdx + step));
     autoAim(); ui();
   }
-  const ICON = {
-    wood: '<svg viewBox="0 0 64 44"><path d="M54 3L32 30" stroke="#e8e8ee" stroke-width="3"/><ellipse cx="22" cy="33" rx="17" ry="9" fill="#fff"/><ellipse cx="20" cy="31" rx="10" ry="4" fill="#e9dcf5"/></svg>',
-    iron: '<svg viewBox="0 0 64 44"><path d="M54 3L34 30" stroke="#e8e8ee" stroke-width="3"/><path d="M36 28L12 33l-3 8 29-4z" fill="#fff"/></svg>',
-    putter: '<svg viewBox="0 0 64 44"><path d="M50 3L38 32" stroke="#fff" stroke-width="3"/><rect x="14" y="32" width="30" height="7" rx="2" fill="#5b3a0a"/><circle cx="26" cy="20" r="5" fill="#fff"/></svg>',
-  };
+  const hex = (n) => "#" + n.toString(16).padStart(6, "0");
+  const TIER = [
+    { bg: "linear-gradient(#f4f6f8, #cfd6dc)", band: "#8e9aa5", name: "Common" },
+    { bg: "linear-gradient(#45c8f0, #1b87c9)", band: "#0f5f93", name: "Rare" },
+    { bg: "linear-gradient(#b247ea, #7524c4)", band: "#4a148c", name: "Epic" },
+    { bg: "linear-gradient(#ffd84d, #f2a71f)", band: "#b56d00", name: "Legendary" },
+  ];
+  // a picture of the club itself: a driver is big and round, a 3 wood shallower, irons get taller
+  // and more lofted through the set, wedges have round toes, putters are blades or mallets
+  function clubArt(c, m = c.model) {
+    const h = hex(m.head), a = hex(m.accent), sh = hex(m.shaft), gr = hex(m.grip);
+    const stick = (x, y) => `<path d="M58 1L${x} ${y}" stroke="${sh}" stroke-width="2.6" stroke-linecap="round"/><path d="M58 1L53 8" stroke="${gr}" stroke-width="4.4" stroke-linecap="round"/>`;
+    if (c.putter) {
+      const head = m.putt === "mallet" ? `<path d="M10 34h32v4a9 9 0 0 1-9 6H19a9 9 0 0 1-9-6z" fill="${h}" stroke="#0003"/><rect x="10" y="31" width="32" height="5" rx="1.5" fill="${h}" stroke="#0003"/><path d="M26 32v10" stroke="${a}" stroke-width="2"/>`
+        : m.putt === "round" ? `<ellipse cx="26" cy="36" rx="17" ry="7" fill="${h}" stroke="#0003"/><circle cx="20" cy="36" r="2.4" fill="${a}"/><circle cx="32" cy="36" r="2.4" fill="${a}"/><path d="M26 31v10" stroke="${a}" stroke-width="1.6"/>`
+        : `<rect x="9" y="31" width="34" height="8" rx="2" fill="${h}" stroke="#0003"/><path d="M26 32v6" stroke="${a}" stroke-width="1.8"/>`;
+      return `<svg viewBox="0 0 64 46" aria-hidden="true">${stick(40, 32)}${head}</svg>`;
+    }
+    if (c.wood) {
+      const f = c.id === "1W" ? 1 : c.id === "MD" ? 0.9 : 0.78, rx = 18 * f, ry = 10 * f * (c.id === "3W" ? 0.8 : 1), cx = 40 - rx, cy = 44 - ry - 1;
+      return `<svg viewBox="0 0 64 46" aria-hidden="true">${stick(40, 30)}<ellipse cx="${cx}" cy="${cy + 1.5}" rx="${rx}" ry="${ry}" fill="${a}"/>` +
+        `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${h}" stroke="#0003"/><ellipse cx="${cx - rx * 0.25}" cy="${cy - ry * 0.35}" rx="${rx * 0.45}" ry="${ry * 0.3}" fill="#fff4"/>` +
+        `<path d="M${cx + rx * 0.55} ${cy - ry * 0.75}l4 2" stroke="${a}" stroke-width="2" stroke-linecap="round"/></svg>`;
+    }
+    // an iron seen from the face: taller and rounder at the toe as the loft goes up
+    const loft = LOFTS[c.id] || 30, wedge = loft >= 45, tall = 9 + loft * 0.2, top = 43 - tall, r = wedge ? 7 : 4.5;
+    const grooves = [0.3, 0.45, 0.6, 0.75].map((f) => { const y = 43 - tall * f + 1; return `M${10 + (1 - f) * 2} ${y}L${33} ${y + 2 * f}`; }).join("");
+    return `<svg viewBox="0 0 64 46" aria-hidden="true">${stick(38, 31)}` +
+      `<path d="M39 30L37.5 41Q37 43.5 34 43.5L11 43.5Q5 43.5 5 ${top + r}Q5 ${top} ${5 + r} ${top}L36 33Z" fill="${h}" stroke="#0004" stroke-width="0.8"/>` +
+      `<path d="${grooves}" stroke="#0003" stroke-width="0.9"/>` +
+      `<path d="M8 41.5L35 41.5" stroke="${a}" stroke-width="${wedge ? 2.6 : 2}" stroke-linecap="round"/></svg>`;
+  }
+  const LOFTS = { "3i": 19, "4i": 21, "5i": 24, "6i": 27, "7i": 31, "8i": 35, "9i": 40, PW: 45, SW: 56, LW: 60 };
+  // a card for a club in your bag, coloured by how rare its model is
+  function clubCard(c, m, attrs, label) {
+    const t = TIER[m.tier];
+    return `<button type="button" class="ccard" ${attrs} style="background:${t.bg}" aria-label="${m.name} ${c.name}">` +
+      `<span class="nm">${c.short}</span>${clubArt(c, m)}<span class="yd" style="background:${t.band}">${label}</span></button>`;
+  }
   function buildClubGrid() {
     const order = [PUTTER, ...CLUBS.map((_, i) => i).filter((i) => i !== PUTTER)];
     $("clubGrid").innerHTML = order.map((i) => {
       const c = CLUBS[i];
-      const kind = c.putter ? "putter" : c.wood ? "wood" : "iron";
-      return `<button type="button" class="ccard${c.putter ? " putter" : ""}" data-i="${i}" aria-pressed="${i === clubIdx}" aria-label="${c.name}">` +
-        `<span class="nm">${c.short}</span>${ICON[kind]}<span class="yd">${c.putter ? "Putter" : showYards ? c.dist + " yds" : c.name}</span></button>`;
+      return clubCard(c, c.model, `data-i="${i}" aria-pressed="${i === clubIdx}"`, c.putter ? "Putter" : showYards ? c.dist + " yds" : c.name);
     }).join("");
   }
   let showYards = true;
@@ -1122,6 +1235,66 @@ td.over { color: var(--over); font-weight: 800; }
     $("ballSheet").hidden = true;
   });
   $("ballSheet").addEventListener("click", (e) => { if (e.target === $("ballSheet")) $("ballSheet").hidden = true; });
+  // ---------- My Bag ----------
+  let bagSlot = 1, bagPeek = null, bagFrom = "menu";
+  const bagOrder = () => [PUTTER, ...CLUBS.map((_, i) => i).filter((i) => i !== PUTTER)];
+  function statBars(c, m) {
+    const sp = specFor(c, m), base = specFor(c, SETS[0]);
+    const bar = (label, v, ref) => {
+      const w = Math.round(Math.max(0.06, Math.min(1, v)) * 100), cls = ref == null || Math.abs(v - ref) < 0.02 ? "" : v > ref ? "up" : "dn";
+      return `<label>${label}<span class="bar"><i class="${cls}" style="width:${w}%"></i></span></label>`;
+    };
+    const t = TIER[m.tier];
+    const sub = c.putter ? "Putter" : `${c.name} · Carry: ${sp.dist} yds`;
+    let rows = "";
+    if (c.putter) rows = bar("Forgiveness", (sp.forgive - 0.7) / 1.2, 0.25);
+    else rows = bar("Speed", (m.dist - 0.93) / 0.16, 0.44) + bar("Loft", (m.loft - 0.84) / 0.3, 0.53) + bar("Curl", (m.curl - 0.6) / 0.95, 0.42) +
+      bar("Spin", (m.spin - 0.7) / 0.7, 0.43) + bar("Forgiveness", (m.forgive - 0.7) / 0.85, 0.35) + bar("Recovery", m.recovery, 0.3);
+    return `<header><b>${m.name}</b><small>${sub}</small><br><span class="tierchip" style="background:${t.band}">${t.name}</span></header><div class="bars">${rows}</div>`;
+  }
+  function buildBag() {
+    const c = CLUBS[bagSlot], peek = bagPeek || c.model;
+    $("bagStats").innerHTML = statBars(c, peek);
+    $("bagOptsLabel").textContent = `${c.name} models`;
+    $("bagOpts").innerHTML = SETS.map((m) => {
+      const on = m === c.model;
+      return clubCard(c, m, `data-k="${m.key}" aria-pressed="${m === peek}"`, c.putter ? m.name : `${specFor(c, m).dist} yds`).replace("</button>", (on ? '<span class="eq">IN BAG</span>' : "") + "</button>");
+    }).join("");
+    $("bagGrid").innerHTML = bagOrder().map((i) => {
+      const k = CLUBS[i];
+      return clubCard(k, k.model, `data-i="${i}" aria-pressed="${i === bagSlot}"`, k.putter ? k.model.name : `${k.dist} yds`);
+    }).join("");
+    if (bagView) bagView.show(c, peek);
+  }
+  function openBag(from) {
+    bagFrom = from; bagPeek = null;
+    if (!(bagSlot >= 0)) bagSlot = 1;
+    $("menuScreen").hidden = true; $("gearSheet").hidden = true;
+    $("bagScreen").hidden = false;
+    buildBag();
+  }
+  $("menuBag").addEventListener("click", () => openBag("menu"));
+  $("btnBag").addEventListener("click", () => { if (phase === "aim") openBag("game"); });
+  $("bagBack").addEventListener("click", () => {
+    $("bagScreen").hidden = true;
+    if (bagFrom === "menu") showMenu();
+    else { autoAim(); ui(); }
+  });
+  $("bagGrid").addEventListener("click", (e) => {
+    const b = e.target.closest(".ccard");
+    if (!b) return;
+    bagSlot = Number(b.dataset.i); bagPeek = null; buildBag();
+  });
+  $("bagOpts").addEventListener("click", (e) => { // tap a model to look at it and put it in your bag
+    const b = e.target.closest(".ccard");
+    if (!b) return;
+    const c = CLUBS[bagSlot];
+    bag[c.id] = b.dataset.k;
+    try { localStorage.setItem("pl-bag", JSON.stringify(bag)); } catch (e2) {}
+    applyBag(); bagPeek = null;
+    buildBag(); ui();
+    sfx.tick();
+  });
   function syncSound() { $("btnSound").textContent = `Sound: ${soundOn ? "on" : "off"}`; }
 
   window.addEventListener("keydown", (e) => {
@@ -1379,13 +1552,13 @@ td.over { color: var(--over); font-weight: 800; }
   const GRIP = new THREE.Vector3(-0.18, 0.62, -0.55), HEAD = new THREE.Vector3(-0.03, 0.03, -0.055);
   const shaftVec = HEAD.clone().sub(GRIP);
   const swingAxis = new THREE.Vector3(1, 0, 0).cross(shaftVec).normalize();
-  const shaftMat = phong(0xf2f2f2, { shininess: 90 });
+  const shaftMat = phong(0xf2f2f2, { shininess: 90 }), gripMat = phong(0x2b2f36, { shininess: 10 });
   let headMesh = null, headFor = null;
   {
     const L = shaftVec.length();
     const stick = new THREE.Group();
     stick.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), shaftVec.clone().normalize());
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.018, 0.3, 10), facet(0x8e2a3d));
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.018, 0.3, 10), gripMat);
     grip.position.y = 0.02;
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.006, L - 0.1, 8), shaftMat);
     shaft.position.y = -(L - 0.1) / 2 - 0.1;
@@ -1400,51 +1573,170 @@ td.over { color: var(--over); font-weight: 800; }
   const pose = { theta: 0, target: 0, vel: 0, yaw: 0, yawTarget: 0, yawVel: 0, script: null };
 
   // Club heads, built around the hosel (origin): face toward +x, toe toward +z, sole at y = -0.03.
-  const LOFT = { "3i": 19, "4i": 21, "5i": 24, "6i": 27, "7i": 31, "8i": 35, "9i": 40, PW: 45, SW: 56, LW: 60 };
-  function makeHead(c) {
+  // The shape comes from the club (a driver is big and deep, a 3 wood shallow, irons grow taller and
+  // more lofted through the set, wedges have wide soles); the colours and back design from the model.
+  const LOFT = LOFTS;
+  const decals = {};
+  function decal(text, color) { // the number stamped on the back of the head
+    const k = text + color;
+    if (decals[k]) return decals[k];
+    const cv = document.createElement("canvas"); cv.width = 128; cv.height = 64;
+    const g = cv.getContext("2d");
+    g.font = "800 52px 'Exo 2', 'Trebuchet MS', sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = hex(color); g.fillText(text, 64, 35);
+    return (decals[k] = srgbTex(cv));
+  }
+  function stamp(text, color, w, h) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: decal(text, color), transparent: true, depthWrite: false }));
+    m.rotation.y = -Math.PI / 2; // facing back toward you
+    return m;
+  }
+  function makeHead(c, m = c.model) {
     const g = new THREE.Group(), box = (w, h, d, mat) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    const hosel = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.035, 8), phong(0xc9ced3, { shininess: 100 }));
+    const shiny = m.key === "classic" || m.key === "sunburst";
+    const body = phong(m.head, { shininess: shiny ? 130 : 70, specular: shiny ? 0xffffff : 0x666666 });
+    const accent = phong(m.accent, { shininess: 60 });
+    const chrome = phong(0xd3d8dd, { shininess: 130, specular: 0xffffff });
+    const hosel = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.035, 10), c.wood || c.putter ? phong(0x2a2d31, { shininess: 80 }) : body);
     hosel.position.set(-0.006, -0.01, 0.002);
     if (c.putter) {
-      const blade = box(0.028, 0.026, 0.115, phong(0x2a2d31, { shininess: 60 }));
-      blade.position.set(-0.018, -0.017, 0.06);
-      const line = box(0.03, 0.002, 0.004, lambert(0xffffff)); line.position.set(-0.018, -0.003, 0.06);
-      const face = box(0.002, 0.022, 0.11, phong(0x9aa2aa, { shininess: 90 })); face.position.set(-0.003, -0.017, 0.06);
-      g.add(blade, line, face, hosel);
-    } else if (c.wood) { // driver and fairway wood: rounded, glossy crowns
-      const f = c.id === "1W" ? 1 : c.id === "MD" ? 0.9 : 0.8;
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), phong(c.id === "MD" ? 0xe8b931 : c.id === "1W" ? 0xd9dde2 : 0xe4c6dd, { shininess: 120, specular: 0xffffff }));
-      body.scale.set(0.062 * f, 0.034 * f, 0.064 * f);
-      body.position.set(-0.058 * f, -0.03 + 0.034 * f, 0.058 * f);
-      const face = box(0.004, 0.044 * f, 0.09 * f, phong(0x8d959e, { shininess: 80 }));
-      face.position.set(-0.004, -0.03 + 0.034 * f, 0.058 * f);
-      const stripe = box(0.07 * f, 0.003, 0.01, lambert(0xffffff)); stripe.position.set(-0.04 * f, -0.03 + 0.068 * f, 0.058 * f);
-      g.add(body, face, stripe, hosel);
-    } else { // irons and wedges: thin chrome blades with loft
-      const wedge = LOFT[c.id] >= 45, h = wedge ? 0.062 : 0.048 + LOFT[c.id] * 0.0001;
-      const chrome = phong(wedge ? 0xb9bec3 : 0xd6dbe0, { shininess: wedge ? 50 : 130, specular: 0xffffff });
+      const face = box(0.003, 0.022, 0.11, chrome); face.position.set(-0.002, -0.017, 0.06);
+      const line = box(0.03, 0.0015, 0.004, lambert(0xffffff));
+      if (m.putt === "mallet") { // half-moon mallet behind the face
+        const mal = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.022, 32, 1, false, Math.PI, Math.PI), body);
+        mal.scale.set(0.75, 1, 1); mal.position.set(-0.004, -0.019, 0.06);
+        const wing = box(0.012, 0.004, 0.08, accent); wing.position.set(-0.03, -0.007, 0.06);
+        line.scale.x = 1.7; line.position.set(-0.026, -0.0075, 0.06);
+        g.add(mal, wing);
+      } else if (m.putt === "round") { // big rounded mallet with two alignment dots
+        const rnd = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 14), body);
+        rnd.scale.set(0.045, 0.012, 0.06); rnd.position.set(-0.042, -0.024, 0.06);
+        for (const z of [0.035, 0.085]) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.004, 16), accent); d.position.set(-0.05, -0.013, z); g.add(d); }
+        line.scale.x = 1.9; line.position.set(-0.03, -0.0115, 0.06);
+        g.add(rnd);
+      } else { // classic blade
+        const blade = box(0.028, 0.026, 0.115, body); blade.position.set(-0.018, -0.017, 0.06);
+        const flange = box(0.012, 0.004, 0.1, accent); flange.position.set(-0.028, -0.028, 0.06);
+        line.position.set(-0.018, -0.0035, 0.06);
+        g.add(blade, flange);
+      }
+      g.add(face, line, hosel);
+    } else if (c.wood) { // driver, mini driver and 3 wood: round crowns, the driver biggest and deepest
+      const f = c.id === "1W" ? 1 : c.id === "MD" ? 0.9 : 0.8, d = c.id === "3W" ? 0.72 : c.id === "MD" ? 0.88 : 1;
+      const cy = -0.03 + 0.034 * f * d;
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), body);
+      crown.scale.set(0.062 * f, 0.034 * f * d, 0.064 * f);
+      crown.position.set(-0.058 * f, cy, 0.058 * f);
+      const sole = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), accent); // the sole peeks out as a band of colour
+      sole.scale.set(0.0625 * f, 0.026 * f * d, 0.0645 * f);
+      sole.position.set(-0.058 * f, cy - 0.011 * f * d, 0.058 * f);
+      const face = box(0.004, 0.046 * f * d, 0.092 * f, phong(m.key === "classic" ? 0x8d959e : 0x2b2e33, { shininess: 80 }));
+      face.position.set(-0.004, cy, 0.058 * f);
+      const mark = box(0.022 * f, 0.002, 0.006, lambert(m.key === "classic" ? 0xffffff : m.accent)); // alignment mark on the crown
+      mark.position.set(-0.03 * f, cy + 0.034 * f * d, 0.058 * f);
+      const num = stamp(c.id === "1W" ? "D" : c.id === "MD" ? "A" : "3", m.accent === m.head ? 0xffffff : m.accent, 0.04 * f, 0.02 * f);
+      num.position.set(-0.121 * f - 0.001, cy + 0.004, 0.058 * f);
+      g.add(crown, sole, face, mark, num, hosel);
+    } else { // irons and wedges: lofted heads that grow taller through the set
+      const loft = LOFT[c.id], wedge = loft >= 45, long = loft <= 21;
+      const h = 0.04 + loft * 0.00037, len = long ? 0.098 : 0.104, r = h * 0.5, z0 = 0.003;
       const blade = new THREE.Group();
-      const face = box(0.016, h, 0.105, chrome); face.position.set(-0.008, h / 2, 0.055);
-      const back = box(0.012, h * 0.45, 0.096, phong(0x8d949b, { shininess: 60 })); back.position.set(-0.021, h * 0.25, 0.055);
-      const grooves = box(0.0015, h * 0.6, 0.07, lambert(0x6d737a)); grooves.position.set(0.0003, h * 0.42, 0.058);
-      blade.add(face, back, grooves);
+      const slab = box(0.008, h, len - r, body); slab.position.set(-0.004, h / 2, z0 + (len - r) / 2);
+      const toe = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.008, 24, 1, false, 0, Math.PI), body); // rounded toe
+      toe.rotation.set(0, 0, Math.PI / 2); toe.rotation.order = "ZYX"; toe.position.set(-0.004, r, z0 + len - r);
+      const toeLow = box(0.008, h * 0.35, r, body); toeLow.position.set(-0.004, h * 0.175, z0 + len - r / 2);
+      const plate = box(0.0015, h * 0.82, len * 0.78, chrome); plate.position.set(0.0004, h * 0.5, z0 + len * 0.47);
+      const grooves = new THREE.Group();
+      for (let i = 0; i < 6; i++) { const gv = box(0.001, 0.0012, len * 0.62, lambert(0x8a9198)); gv.position.set(0.0012, h * (0.2 + i * 0.11), z0 + len * 0.47); grooves.add(gv); }
+      blade.add(slab, toe, toeLow, plate, grooves);
+      let backX; // the face of the back that you look at, for the number
+      if (long) { // long irons: a hollow, chunky back
+        const hollow = box(0.018, h * 0.75, len * 0.9, body); hollow.position.set(-0.016, h * 0.38, z0 + len * 0.47);
+        const strip = box(0.002, h * 0.12, len * 0.6, accent); strip.position.set(-0.0255, h * 0.62, z0 + len * 0.47);
+        blade.add(hollow, strip); backX = -0.0255;
+      } else if (wedge || m.back === "blade") { // a muscle back, with a wide bouncy sole on the wedges
+        const t = wedge ? 0.02 : 0.013;
+        const muscle = box(t, h * (wedge ? 0.38 : 0.5), len * 0.92, body); muscle.position.set(-0.008 - t / 2, h * (wedge ? 0.19 : 0.27), z0 + len * 0.47);
+        const line = box(0.002, h * 0.06, len * 0.7, accent); line.position.set(-0.009 - t, h * (wedge ? 0.36 : 0.5), z0 + len * 0.47);
+        blade.add(muscle, line); backX = -0.0085 - t;
+      } else { // cavity back: a frame with a coloured badge in the middle
+        const sole = box(0.016, h * 0.34, len * 0.95, body); sole.position.set(-0.016, h * 0.17, z0 + len * 0.47);
+        const top = box(0.007, h * 0.14, len - r, body); top.position.set(-0.0115, h * 0.93, z0 + (len - r) / 2);
+        const heel = box(0.012, h, 0.012, body); heel.position.set(-0.012, h / 2, z0 + 0.006);
+        const badge = box(0.002, h * 0.34, len * 0.5, accent); badge.position.set(-0.009, h * 0.58, z0 + len * 0.5);
+        blade.add(sole, top, heel, badge); backX = -0.024;
+      }
+      const label = wedge ? (c.id === "PW" ? "P" : String(loft)) : c.id[0];
+      const num = stamp(label, m.accent, len * 0.42, h * 0.32);
+      num.position.set(backX - 0.0008, h * (long ? 0.3 : 0.17), z0 + len * 0.68);
+      blade.add(num);
       blade.position.y = -0.03;
-      blade.rotation.z = LOFT[c.id] * Math.PI / 180; // tilt the face back by its loft
+      blade.rotation.z = loft * Math.PI / 180; // tilt the face back by its loft
       g.add(blade, hosel);
     }
-    g.traverse((o) => { o.castShadow = true; });
+    g.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
     g.position.copy(shaftVec);
+    return g;
+  }
+  // a whole club (grip, shaft and head) for the bag screen
+  function makeClub(c, m = c.model) {
+    const g = new THREE.Group(), L = shaftVec.length();
+    const stick = new THREE.Group();
+    stick.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), shaftVec.clone().normalize());
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.018, 0.3, 14), phong(m.grip, { shininess: 10 }));
+    grip.position.y = 0.02;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.006, L - 0.1, 10), phong(m.shaft, { shininess: 90 }));
+    shaft.position.y = -(L - 0.1) / 2 - 0.1;
+    stick.add(grip, shaft);
+    g.add(stick, makeHead(c, m));
     return g;
   }
   function syncClubModel() {
     const c = club();
-    if (headFor === c.id) return;
+    if (headFor === c.id + c.model.key) return;
     if (headMesh) clubPivot.remove(headMesh);
     headMesh = makeHead(c);
     clubPivot.add(headMesh);
-    headFor = c.id;
-    shaftMat.color.copy(C(0xf2f2f2));
+    headFor = c.id + c.model.key;
+    shaftMat.color.copy(C(c.model.shaft));
+    gripMat.color.copy(C(c.model.grip));
   }
+
+  const bagView = (() => {
+    let r = null;
+    try { r = new THREE.WebGLRenderer({ canvas: $("bagGL"), antialias: true, alpha: true }); } catch (e) { return null; }
+    r.outputEncoding = THREE.sRGBEncoding;
+    const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.01, 20);
+    sc.add(new THREE.HemisphereLight(C(0xffffff), C(0x9fb3c0), 0.75));
+    const key = new THREE.DirectionalLight(C(0xffffff), 0.65); key.position.set(-1, 2, 1.5); sc.add(key);
+    const turn = new THREE.Group(); sc.add(turn);
+    let club3d = null, shown = "", t = 0;
+    return {
+      show(c, m) {
+        if (shown === c.id + m.key) return;
+        shown = c.id + m.key;
+        if (club3d) turn.remove(club3d);
+        club3d = new THREE.Group();
+        const k = makeClub(c, m);
+        // stand the club up with its head at the centre of the turntable
+        k.quaternion.setFromUnitVectors(shaftVec.clone().normalize(), new THREE.Vector3(0.28, -1, 0).normalize());
+        k.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(k.children[1]), mid = bb.getCenter(new THREE.Vector3());
+        k.position.sub(mid);
+        club3d.add(k); turn.add(club3d);
+      },
+      frame(dt) {
+        const cv = $("bagGL"), w = cv.clientWidth, h = cv.clientHeight;
+        if (!w || !h) return;
+        if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { r.setPixelRatio(dpr); r.setSize(w, h, false); }
+        cam.aspect = w / h; cam.updateProjectionMatrix();
+        t += dt;
+        turn.rotation.y = -1.2 + Math.sin(t * 0.7) * 0.9;
+        cam.position.set(0, 0.16, 0.78); cam.lookAt(0, 0.12, 0);
+        r.render(sc, cam);
+      },
+    };
+  })();
 
   // ---------- course painting ----------
   function ell(g, e, pad = 0) { g.beginPath(); g.ellipse(e[0], e[1], Math.max(0.1, e[2] + pad), Math.max(0.1, e[3] + pad), 0, 0, Math.PI * 2); }
@@ -1841,6 +2133,7 @@ td.over { color: var(--over); font-weight: 800; }
     updateCamera(dt);
     updateScene(dt);
     if (renderer) renderer.render(scene, camera);
+    if (bagView && !$("bagScreen").hidden) bagView.frame(dt);
     drawOverlay();
     requestAnimationFrame(loop);
   }
