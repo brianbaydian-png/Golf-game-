@@ -223,7 +223,7 @@ td.over { color: var(--over); font-weight: 800; }
       <h2>Pinecrest Links</h2>
       <ul>
         <li><b>Swing:</b> drag down anywhere on the course to take the club back (further = harder), then flick up. The club swings through for you.</li>
-        <li><b>Straight shots:</b> swipe back up along the same line you pulled down. Coming up to the right of that line fades or slices the ball; to the left draws or hooks it.</li>
+        <li><b>Shape it:</b> come back up along the same line you pulled down to hit it straight. Come up a little to the right of that line for a draw (starts right, curves left), a little to the left for a fade (starts left, curves right). Further off the line hooks or slices.</li>
         <li><b>Aim:</b> drag sideways on the course. The binoculars show where you are aiming.</li>
         <li><b>Clubs:</b> tap the blue button. The orange button picks Regular, Punch, Chip or Flop.</li>
         <li><b>Putting:</b> greens really slope. The red grid and the drifting dots show which way the ball will break. Too much pace and it can lip out.</li>
@@ -261,8 +261,8 @@ td.over { color: var(--over); font-weight: 800; }
   CLUBS.forEach((c) => { c.launch = LAUNCH[c.id]; });
   const SHORT = { "1W": "D", "3W": "3w", PW: "Pw", SW: "Sw", LW: "Lw", PT: "P" };
   const SWING_MPH = { "1W": 124, "3W": 112, "3i": 100, "4i": 97, "5i": 94, "6i": 91, "7i": 88, "8i": 86, "9i": 84, PW: 78, SW: 70, LW: 63, PT: 9 };
-  const TOL = { "1W": 1.2, "3W": 1.3, "3i": 1.35, PW: 1.8, SW: 1.85, LW: 1.9, PT: 2.5 }; // straight-swing allowance in degrees
-  CLUBS.forEach((c) => { c.short = SHORT[c.id] || c.id; c.mph = SWING_MPH[c.id]; c.tol = TOL[c.id] || 1.5; });
+  const TOL = { "1W": 4, "3W": 4.3, "3i": 4.6, PW: 6, SW: 6.3, LW: 6.5, PT: 8 }; // straight-swing allowance in degrees
+  CLUBS.forEach((c) => { c.short = SHORT[c.id] || c.id; c.mph = SWING_MPH[c.id]; c.tol = TOL[c.id] || 5; });
   const PUTTER = CLUBS.length - 1;
   // golf balls: each trades distance, spin (how quickly it stops) and forgiveness (how wide a swing still flies straight)
   const BALLS = [
@@ -626,7 +626,10 @@ td.over { color: var(--over); font-weight: 800; }
     meter.power = Math.max(0.03, raw);
     const tol = Math.round(c.tol * golfBall().forgive * 10) / 10;
     const over = Math.abs(offset) - tol;
-    const curve = over <= 0 ? 0 : Math.sign(offset) * Math.min(20, over * 2.2);
+    // face = the line you pulled down (mirrored), path = your upswipe. Path right of face draws the
+    // ball (starts right, curves left); path left of face fades it (starts left, curves right).
+    const face = -back, path = down;
+    const curve = over <= 0 ? 0 : -Math.sign(offset) * Math.min(20, over * 1.6);
     lastSwing = { pts: s.pts, t: performance.now() };
     pose.target = c.putter ? -0.6 : -2.2;
     pose.yawTarget = Math.max(-0.6, Math.min(0.6, down * Math.PI / 180 * 1.6));
@@ -637,7 +640,7 @@ td.over { color: var(--over); font-weight: 800; }
     $("scOff").innerHTML = `<span class="${over <= 0 ? "ok" : "bad"}">${Math.abs(offset).toFixed(1)}</span><em>/${tol.toFixed(1)}</em>`;
     $("swingCards").hidden = false; $("tags").hidden = true; $("holecard").hidden = true;
     setSwingMsg(raw > 1.005 ? "Overswing!" : "");
-    fire({ start: Math.max(-15, Math.min(15, down * 0.8)), curve });
+    fire({ start: Math.max(-15, Math.min(15, face * 0.75 + path * 0.25)), curve });
   }
 
   function shapeName(a) {
@@ -745,6 +748,7 @@ td.over { color: var(--over); font-weight: 800; }
       return startRoll(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 3);
     }
     sfx.land();
+    if (stats && !stats.putt && !(toast && toast.t > 40)) toast = { text: stats.shape, t: 110 };
     if (l === "sand") { toast = { text: "In the bunker.", t: 120 }; return endShot(); }
     const mult = { fairway: 1, tee: 1, fringe: 0.9, green: 0.9, rough: 0.45 }[l] ?? 1;
     const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult / golfBall().spin);
@@ -1514,10 +1518,10 @@ td.over { color: var(--over); font-weight: 800; }
     let pos, look, k, kLook = 0;
     if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
-      const back = putt ? 3.4 : phase === "roll" ? 12 : 34, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 9 + ball.z * 0.35;
+      const back = putt ? 3.4 : phase === "roll" ? 12 : 20, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 4 + ball.z * 0.85;
       pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
       look = V(ball.x, ball.y, (ball.z || 0) * 0.8 + greenH(ball.x, ball.y));
-      k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.03 : 0.25, dt); // camera trails behind
+      k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.03 : 0.012, dt); // camera rides along behind the ball
       kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
     } else {
       // first person: eyes just behind and above the club, looking down the target line
@@ -1715,7 +1719,11 @@ td.over { color: var(--over); font-weight: 800; }
       // the ball leaves fast and slows down: distance covered eases out over the flight time
       shot.tau = Math.min(1, shot.tau + dt / shot.dur);
       const u = Math.min(shot.endT, 1 - Math.pow(1 - shot.tau, 1.6));
-      const p = shot.P(u);
+      const p = shot.P(u), hx = p.x - ball.x, hy = p.y - ball.y, hl = Math.hypot(hx, hy);
+      if (hl > 0.01) { // the camera turns with a draw or fade
+        const fx = flyDir.x + (hx / hl - flyDir.x) * 0.08, fy = flyDir.y + (hy / hl - flyDir.y) * 0.08, fl = Math.hypot(fx, fy);
+        flyDir = { x: fx / fl, y: fy / fl };
+      }
       ball = { x: p.x, y: p.y, z: shot.Z(u) };
       trail.push({ x: p.x, y: p.y, z: ball.z });
       if (u >= shot.endT) landShot();
