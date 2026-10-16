@@ -143,6 +143,7 @@ button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .btn { font: 700 0.95rem var(--font); color: var(--ink); background: #fff; border: 0; border-radius: 10px; padding: 10px 16px; }
 .btn.primary { background: var(--orange); color: #fff; padding: 12px 30px; font: 800 1.1rem var(--font); box-shadow: 0 4px 0 var(--orange-dk); }
 .endcard { overflow: hidden; }
+.fade { position: absolute; inset: 0; background: #0b2a33; opacity: 0; pointer-events: none; }
 .xpbadge { position: absolute; top: 14px; right: 0; background: #ff6fd8; color: #fff; font: 700 0.72rem/1.2 var(--font); padding: 6px 12px; border-radius: 6px 0 0 6px; text-align: center; animation: xpin 0.5s ease-out; z-index: 2; }
 .xpbadge b { font-size: 0.95rem; }
 @keyframes xpin { from { transform: translateX(100%); } }
@@ -291,6 +292,7 @@ td.over { color: var(--over); font-weight: 800; }
       </ul>
       <button class="btn primary" id="helpGo" type="button">Tee off</button>
     </div>
+    <div class="fade" id="fade" aria-hidden="true"></div>
     <div class="overlay endcard" id="overlay" hidden>
       <div class="balloons" id="balloons" aria-hidden="true"></div>
       <div class="xpbadge" id="ovXp"></div>
@@ -307,9 +309,9 @@ td.over { color: var(--over); font-weight: 800; }
 (() => {
   // ---------- equipment ----------
   const CLUBS = [
-    { id: "MD", name: "Albi", dist: 400, apex: 34, roll: 0.12, wind: 0.85, wood: true }, // mini driver
-    { id: "1W", name: "Driver", dist: 295, apex: 32, roll: 0.13, wind: 0.9, wood: true },
-    { id: "3W", name: "3 Wood", dist: 255, apex: 30, roll: 0.11, wind: 0.95, wood: true },
+    { id: "MD", name: "Albi", dist: 400, apex: 34, roll: 0.15, wind: 0.85, wood: true }, // mini driver
+    { id: "1W", name: "Driver", dist: 295, apex: 32, roll: 0.19, wind: 0.9, wood: true },
+    { id: "3W", name: "3 Wood", dist: 255, apex: 30, roll: 0.15, wind: 0.95, wood: true },
     { id: "3i", name: "3 Iron", dist: 225, apex: 27, roll: 0.08, wind: 1 },
     { id: "4i", name: "4 Iron", dist: 215, apex: 28, roll: 0.075, wind: 1 },
     { id: "5i", name: "5 Iron", dist: 205, apex: 29, roll: 0.07, wind: 1 },
@@ -646,8 +648,8 @@ td.over { color: var(--over); font-weight: 800; }
   function autoClub() {
     const d = distPin();
     if (lie === "green" || (lie === "fringe" && d < 15)) return PUTTER;
-    for (let i = PUTTER - 1; i >= 0; i--) if (CLUBS[i].dist * lieFactor(lie, CLUBS[i]) >= d * 0.97) return i;
-    return 0; // nothing reaches: the Albi goes furthest
+    for (let i = PUTTER - 1; i >= 1; i--) if (CLUBS[i].dist * lieFactor(lie, CLUBS[i]) >= d * 0.97) return i;
+    return 1; // out of range: the driver (the Albi is yours to pick from the bag)
   }
   function autoAim() {
     const d = distPin(), carry = carryEst();
@@ -906,7 +908,7 @@ td.over { color: var(--over); font-weight: 800; }
     flyDir = dir;
     { // longer shots get the Golf Dreams camera: hold on the strike, then cut down to the landing area
       const land = P(endT);
-      flightCam = carry > 70 ? { t: 0, hold: 0.75, land, dir: { x: dir.x, y: dir.y }, side: curve >= 0 ? -1 : 1, cut: false } : null;
+      flightCam = carry > 70 && hyp(land.x - H.pin.x, land.y - H.pin.y) < 45 ? { t: 0, hold: 0.75, land, dir: { x: dir.x, y: dir.y }, side: curve >= 0 ? -1 : 1, cut: false } : null;
     }
     const SPIN = { MD: 2300, "1W": 2700, "3W": 3600, "3i": 4100, "4i": 4600, "5i": 5200, "6i": 6000, "7i": 7000, "8i": 7900, "9i": 8600, PW: 9300, SW: 10200, LW: 10800 };
     const spinMul = { full: 1, punch: 0.7, chip: 0.8, flop: 1.15 }[S === SHOTS.full ? "full" : Object.keys(SHOTS).find((k) => SHOTS[k] === S)];
@@ -1097,6 +1099,11 @@ td.over { color: var(--over); font-weight: 800; }
 
   function endShot(silent) {
     roll = null; shot = null;
+    { // a quick dark cut back to the ball, like Golf Dreams
+      const f = $("fade");
+      f.style.transition = "none"; f.style.opacity = "0.6";
+      requestAnimationFrame(() => requestAnimationFrame(() => { f.style.transition = "opacity 0.55s ease-out"; f.style.opacity = "0"; }));
+    }
     prepareShot();
     if (phase !== "aim") return;
   }
@@ -1125,7 +1132,7 @@ td.over { color: var(--over); font-weight: 800; }
     $("ovXp").innerHTML = `Hole finished<br><b>+${xp}xp</b>`;
     const term = pickedUp ? "Picked up" : n === 1 ? "Hole in One!" : TERMS[diff] || `+${diff}`;
     const total = totalStrokes(), tp = totalPar();
-    $("ovTitle").textContent = last ? "Round Complete" : term;
+    $("ovTitle").textContent = last ? `You finished: ${place()}` : term;
     $("ovText").textContent = last
       ? `${term} on the 18th. You shot ${total} (${fmtDiff(total - tp)}) and finished ${place()} of ${RIVALS.length + 1}.`
       : `${n} stroke${n === 1 ? "" : "s"} on a par ${H.par}. Round so far: ${fmtDiff(total - parSoFar())}.`;
@@ -1723,7 +1730,22 @@ td.over { color: var(--over); font-weight: 800; }
   const puttRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 48), new THREE.MeshBasicMaterial({ color: C(0xffffff), transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
   puttRing.rotation.x = -Math.PI / 2;
   puttRing.visible = false;
-  scene.add(ballMesh, tracer, teePeg, slopeDots, cupGroup, aimBeam, puttRing);
+  const landPin = (() => {
+    const c = document.createElement("canvas"); c.width = 96; c.height = 128;
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: srgbTex(c), depthTest: false, transparent: true, fog: false }));
+    m.center.set(0.5, 0); m.renderOrder = 5; m.userData = { c, label: "" };
+    return m;
+  })();
+  function drawLandPin(label) {
+    const { c } = landPin.userData, g = c.getContext("2d");
+    landPin.userData.label = label;
+    g.clearRect(0, 0, 96, 128);
+    g.fillStyle = "#1f8fe0"; g.beginPath(); g.arc(48, 44, 38, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(48, 124); g.closePath(); g.fill();
+    g.strokeStyle = "#fff"; g.lineWidth = 6; g.stroke();
+    g.fillStyle = "#fff"; g.font = `800 ${label.length > 2 ? 26 : 38}px 'Exo 2', sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(label, 48, 46);
+    landPin.material.map.needsUpdate = true;
+  }
+  scene.add(ballMesh, tracer, teePeg, slopeDots, cupGroup, aimBeam, puttRing, landPin);
 
   // your club, seen from just behind the ball. The shaft rises from the heel of the head toward
   // your hands on the left; it swings back and through on an inclined plane, and yaws left or
@@ -2195,6 +2217,17 @@ td.over { color: var(--over); font-weight: 800; }
 
     // aim beam
     // full swings show no aim line (the swing fan shows direction); the putter gets a short guide line
+    { // the landing pin shows during the fly-in and through the binoculars
+      const c = club(), show = phase === "aim" && !c.putter && (introT > 0 || lookMode);
+      landPin.visible = show;
+      if (show) {
+        if (landPin.userData.label !== c.short) drawLandPin(c.short);
+        const L = carryEst(), lx = ball.x + Math.cos(aimAng) * L, ly = ball.y + Math.sin(aimAng) * L;
+        landPin.position.copy(V(lx, ly, greenH(lx, ly) + 0.3));
+        const d = camera.position.distanceTo(landPin.position);
+        landPin.scale.set(d * 0.05, d * 0.0667, 1);
+      }
+    }
     const aiming = (phase === "aim" || phase === "swing") && !lookMode && club().putter;
     aimBeam.visible = aiming;
     puttRing.visible = aiming && phase === "swing" && !!swipe;
@@ -2293,8 +2326,8 @@ td.over { color: var(--over); font-weight: 800; }
       }
     }
 
-    // carry so far, floating beside the ball
-    if ((phase === "flight" || phase === "roll") && stats && !stats.putt) {
+    // carry so far, floating beside the ball (putts too)
+    if ((phase === "flight" || phase === "roll") && stats) {
       const b = proj(ballMesh.position);
       if (b.ok) {
         octx.font = "800 15px 'Exo 2', 'Trebuchet MS', sans-serif"; octx.textAlign = "left"; octx.textBaseline = "middle";
