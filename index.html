@@ -310,18 +310,18 @@ td.over { color: var(--over); font-weight: 800; }
   // ---------- equipment ----------
   const CLUBS = [
     { id: "MD", name: "Albi", dist: 400, apex: 34, roll: 0.15, wind: 0.85, wood: true }, // mini driver
-    { id: "1W", name: "Driver", dist: 295, apex: 32, roll: 0.19, wind: 0.9, wood: true },
-    { id: "3W", name: "3 Wood", dist: 255, apex: 30, roll: 0.15, wind: 0.95, wood: true },
-    { id: "3i", name: "3 Iron", dist: 225, apex: 27, roll: 0.08, wind: 1 },
-    { id: "4i", name: "4 Iron", dist: 215, apex: 28, roll: 0.075, wind: 1 },
+    { id: "1W", name: "Driver", dist: 295, apex: 32, roll: 0.18, wind: 0.9, wood: true },
+    { id: "3W", name: "3 Wood", dist: 255, apex: 30, roll: 0.13, wind: 0.95, wood: true },
+    { id: "3i", name: "3 Iron", dist: 225, apex: 27, roll: 0.09, wind: 1 },
+    { id: "4i", name: "4 Iron", dist: 215, apex: 28, roll: 0.08, wind: 1 },
     { id: "5i", name: "5 Iron", dist: 205, apex: 29, roll: 0.07, wind: 1 },
-    { id: "6i", name: "6 Iron", dist: 195, apex: 30, roll: 0.06, wind: 1 },
-    { id: "7i", name: "7 Iron", dist: 180, apex: 31, roll: 0.055, wind: 1.05 },
-    { id: "8i", name: "8 Iron", dist: 175, apex: 32, roll: 0.05, wind: 1.05 },
-    { id: "9i", name: "9 Iron", dist: 165, apex: 33, roll: 0.045, wind: 1.1 },
-    { id: "PW", name: "Pitching Wedge", dist: 130, apex: 33, roll: 0.035, wind: 1.15 },
-    { id: "SW", name: "Sand Wedge", dist: 110, apex: 32, roll: 0.025, wind: 1.2 },
-    { id: "LW", name: "Lob Wedge", dist: 100, apex: 31, roll: 0.018, wind: 1.25 },
+    { id: "6i", name: "6 Iron", dist: 195, apex: 30, roll: 0.062, wind: 1 },
+    { id: "7i", name: "7 Iron", dist: 180, apex: 31, roll: 0.056, wind: 1.05 },
+    { id: "8i", name: "8 Iron", dist: 175, apex: 32, roll: 0.052, wind: 1.05 },
+    { id: "9i", name: "9 Iron", dist: 165, apex: 33, roll: 0.042, wind: 1.1 },
+    { id: "PW", name: "Pitching Wedge", dist: 130, apex: 33, roll: 0.034, wind: 1.15 },
+    { id: "SW", name: "Sand Wedge", dist: 110, apex: 32, roll: 0.026, wind: 1.2 },
+    { id: "LW", name: "Lob Wedge", dist: 100, apex: 31, roll: 0.02, wind: 1.25 },
     { id: "PT", name: "Putter", putter: true },
   ];
   const LAUNCH = { MD: 11, "1W": 12, "3W": 13, "3i": 14, "4i": 15, "5i": 16, "6i": 17, "7i": 19, "8i": 21, "9i": 24, PW: 27, SW: 32, LW: 38, PT: 2 };
@@ -962,17 +962,23 @@ td.over { color: var(--over); font-weight: 800; }
     sfx.land();
     if (stats && !stats.putt && !(toast && toast.t > 40)) toast = { text: stats.shape, t: 110 };
     if (l === "sand") { toast = { text: "In the bunker.", t: 120 }; return endShot(); }
-    const mult = { fairway: 1, tee: 1, fringe: 0.9, green: 0.9, rough: 0.45 }[l] ?? 1;
-    const v0 = Math.sqrt(2 * DECEL[l] * carry * c.roll * rollMul * mult / golfBall().spin / c.spinMul);
-    startRoll(dx * v0, dy * v0, 2.2);
+    // Golf Dreams roll-out: a couple of bounces, then the ball runs out. c.roll is how much of the carry
+    // a full shot runs on after landing on the fairway (a driver about 18%, a wedge 2 or 3%).
+    const mult = { fairway: 1, tee: 1, fringe: 1, green: 1.05, rough: 0.4 }[l] ?? 1;
+    const want = carry * c.roll * rollMul * mult / golfBall().spin / c.spinMul;
+    const firm = l === "rough" ? 0.5 : 1;
+    const h1 = Math.max(0.4, want * 0.3 * firm), h2 = Math.max(0.15, want * 0.1 * firm), slide = Math.max(0, want - h1 - h2);
+    const hopH = Math.min(2.2, Math.max(0.12, Math.min(shot.apex * 0.07, h1 * 0.15 + 0.1)) * firm);
+    const vHop = h1 / (2 * Math.sqrt(2 * hopH / 10.7)); // so the bounce lasts as long as a real one would
+    startRoll(dx * vHop, dy * vHop, 1.5);
+    roll.slideV = Math.sqrt(2 * DECEL[l] * slide);
     // a well-struck wedge or short iron grabs the green and spins back toward you
-    if (stats && stats.spin > 6500 && rollMul <= 1 && (l === "green" || l === "fringe" || l === "fairway")) {
-      roll.backspin = Math.min(3.5, (stats.spin - 6500) / 1300) * (l === "fairway" ? 0.4 : 1) * golfBall().spin;
+    if (stats && stats.spin > 6000 && rollMul <= 1 && (l === "green" || l === "fringe" || l === "fairway")) {
+      roll.backspin = Math.min(3.5, (stats.spin - 6000) / 1000) * (l === "fairway" ? 0.4 : 1) * golfBall().spin;
       roll.back = { x: -dx, y: -dy };
     }
-    // a couple of bounces before it settles into the roll
-    const firm = l === "rough" ? 0.5 : 1;
-    roll.hop = { len: Math.max(0.6, v0 * 0.5 * firm), h: Math.min(2.2, Math.max(0.15, shot.apex * 0.07 * firm)), s: 0 };
+    // two bounces before it settles into the roll
+    roll.hop = { len: h1, h: hopH, s: 0, next: { len: h2, h: hopH * 0.3 } };
   }
 
   // the ball glances off the tree, falls out of the branches and rolls to a stop wherever it ends up
@@ -1016,8 +1022,8 @@ td.over { color: var(--over); font-weight: 800; }
     phase = "roll";
   }
 
-  function stepRoll() {
-    const SUB = 20, dt = roll.ts / 60 / SUB;
+  function stepRoll(frameDt = 1 / 60) {
+    const SUB = 20, dt = roll.ts * frameDt / SUB;
     for (let i = 0; i < SUB; i++) {
       if (roll.hop) { // in the air between bounces: no friction, no catching in sand mid-hop
         const hp = roll.hop, sp = hyp(roll.vx, roll.vy) || 1, stepLen = sp * dt;
@@ -1030,10 +1036,18 @@ td.over { color: var(--over); font-weight: 800; }
           if (l === "ob" && roll.fromTree) return treeDrop();
           if (l === "water" || l === "ob") return hazard(l, ball);
           if (l === "sand") { toast = { text: "Bounced into the bunker.", t: 120 }; return endShot(); }
-          const keep = { green: 0.8, fringe: 0.75, rough: 0.55 }[l] ?? 0.82;
-          roll.vx *= keep; roll.vy *= keep;
           sfx.land();
-          roll.hop = hp.h > 0.25 ? { len: hp.len * 0.45, h: hp.h * 0.35, s: 0 } : null;
+          if (roll.slideV != null) { // a planned landing: hop once more, then run out at the planned pace
+            const nx = hp.next;
+            const v = nx ? nx.len / (2 * Math.sqrt(2 * Math.max(0.03, nx.h) / 10.7)) : roll.slideV * (l === "rough" ? 0.6 : 1);
+            const sp0 = hyp(roll.vx, roll.vy) || 1;
+            roll.vx *= v / sp0; roll.vy *= v / sp0;
+            roll.hop = nx ? { len: nx.len, h: nx.h, s: 0 } : null;
+          } else {
+            const keep = { green: 0.8, fringe: 0.75, rough: 0.55 }[l] ?? 0.82;
+            roll.vx *= keep; roll.vy *= keep;
+            roll.hop = hp.h > 0.25 ? { len: hp.len * 0.45, h: hp.h * 0.35, s: 0 } : null;
+          }
         }
         continue;
       }
@@ -2378,7 +2392,7 @@ td.over { color: var(--over); font-weight: 800; }
       trail.push({ x: p.x, y: p.y, z: ball.z });
       if (u >= shot.endT) landShot();
     } else if (phase === "roll") {
-      stepRoll();
+      stepRoll(dt);
       if (tick % 2 === 0) trail.push({ x: ball.x, y: ball.y, z: ball.z || 0 });
     }
     updateCamera(dt);
