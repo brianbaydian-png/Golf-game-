@@ -672,6 +672,12 @@ td.over { color: var(--over); font-weight: 800; }
       if (fairwayGap(h, tx, ty) > 8 && lineDist(tx, ty) > 24 && clear(tx, ty)) { add(tx, ty, rand() < 0.15 ? "bush" : kind); j++; }
     }
     // the tee, the green and every pond sit level at the height of the land under them
+    { // lift the land so its lowest point sits above the far ground (otherwise the far ground pokes through)
+      let lo = Infinity; const [x0, y0, x1, y1] = h.bounds;
+      h.baseMin = 0;
+      for (let x = x0 - 60; x <= x1 + 60; x += 5) for (let y = y0 - 60; y <= y1 + 60; y += 5) lo = Math.min(lo, baseH(h, x, y));
+      h.baseMin = lo - 0.8;
+    }
     h.tB = baseH(h, 0, 0); h.gB = baseH(h, h.green.x, h.green.y);
     h.waterB = h.water.map((e) => baseH(h, e[0], e[1]));
     return h;
@@ -807,14 +813,14 @@ td.over { color: var(--over); font-weight: 800; }
   // ---------- green surface ----------
   // Greens are raised and tilted along the hole's slope, with a gentle crown. Heights are drawn
   // VIS times steeper than the slope the ball feels, so the break is easy to see.
-  const VIS = 2.2;
+  const VIS = 1.2; // how much taller the green's shape is drawn than the slope the ball feels
   function greenHAt(h, x, y) {
     if (!h) return 0;
-    const g = h.green, dx = x - g.x, dy = y - g.y, r = hyp(dx, dy), R = g.r + 3;
+    const g = h.green, dx = x - g.x, dy = y - g.y, r = hyp(dx, dy), R = g.r + 7; // a gentle bank, not a wall
     if (r >= R) return 0;
     const sm = hyp(h.slope[0], h.slope[1]);
     const tilt = -(h.slope[0] * dx + h.slope[1] * dy) * 0.01 * VIS;
-    const base = sm * 0.01 * VIS * g.r + 0.12 + 0.15 * VIS; // keeps every part of the green above the fairway
+    const base = sm * 0.01 * VIS * g.r + 0.1 + 0.1 * VIS; // keeps every part of the green above the fairway
     let crown = 0.15 * Math.max(0, 1 - (r / g.r) ** 2);
     for (const [ux, uy, ur, ua] of h.und || []) crown += ua * VIS * Math.exp(-(((x - ux) ** 2 + (y - uy) ** 2) / (ur * ur)));
     const t = r <= g.r + 0.5 ? 1 : 1 - (r - g.r - 0.5) / (R - g.r - 0.5);
@@ -830,7 +836,7 @@ td.over { color: var(--over); font-weight: 800; }
     return Math.sqrt((dx / e[2]) ** 2 + (dy / e[3]) ** 2);
   }
   function baseH(h, x, y) { // the broad slope of the land, fairways included
-    let z = h.cross * y;
+    let z = h.cross * y - (h.baseMin || 0);
     for (const [a, fx, fy, p] of h.swell) z += a * Math.sin(x * fx + y * fy + p);
     return z;
   }
@@ -1208,12 +1214,18 @@ td.over { color: var(--over); font-weight: 800; }
     endShot(true);
   }
 
+  // the low putting camera sits just over the highest hump between it and the hole, so the green never fills the screen
+  function puttCamZ(bx, by) {
+    let top = greenH(bx, by);
+    for (let i = 1; i <= 10; i++) { const t = i / 10; top = Math.max(top, greenH(bx + (H.pin.x - bx) * t, by + (H.pin.y - by) * t)); }
+    return top + 0.75;
+  }
   function startRoll(vx, vy, ts, putt = false) {
     flightCam = null;
     if (putt) { // cut straight to a low camera behind the putt, like Golf Dreams
       const hx = H.pin.x - ball.x, hy = H.pin.y - ball.y, hd = hyp(hx, hy) || 1, b = 2.4;
       const bx = ball.x - hx / hd * b, by = ball.y - hy / hd * b;
-      camera.position.copy(V(bx - hy / hd * 0.35, by + hx / hd * 0.35, greenH(bx, by) + 0.42));
+      camera.position.copy(V(bx - hy / hd * 0.35, by + hx / hd * 0.35, puttCamZ(bx, by)));
       camLook.copy(V(H.pin.x, H.pin.y, greenH(H.pin.x, H.pin.y) + 0.15));
       if (camera.fov !== 50) { camera.fov = 50; camera.updateProjectionMatrix(); }
     }
@@ -1743,7 +1755,7 @@ td.over { color: var(--over); font-weight: 800; }
   sunLight.shadow.normalBias = 0.02;
   scene.add(sunLight, sunLight.target);
   const outerGround = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({ color: C(0x7cad3c) }));
-  outerGround.rotation.x = -Math.PI / 2; outerGround.position.y = -0.6; scene.add(outerGround);
+  outerGround.rotation.x = -Math.PI / 2; outerGround.position.y = -2; scene.add(outerGround);
 
   const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color: C(color), ...extra });
   const phong = (color, extra = {}) => new THREE.MeshPhongMaterial({ color: C(color), ...extra });
@@ -2287,7 +2299,7 @@ td.over { color: var(--over); font-weight: 800; }
     const pgeo = new THREE.PlaneGeometry(art.W, art.H, Math.round(art.W / 2.5), Math.round(art.H / 2.5));
     { // raise the hills and sink the bunkers
       const pos = pgeo.attributes.position, cx = art.X0 + art.W / 2, cy = art.Y0 + art.H / 2;
-      for (let i = 0; i < pos.count; i++) pos.setZ(i, terrainH(h, cx + pos.getX(i), cy - pos.getY(i)));
+      for (let i = 0; i < pos.count; i++) { const x = cx + pos.getX(i), y = cy - pos.getY(i); pos.setZ(i, terrainH(h, x, y) + greenHAt(h, x, y)); } // the green's bank runs out into the ground
       pgeo.computeVertexNormals();
     }
     addGrain(pgeo, art.W / 1.4, art.H / 1.4);
@@ -2321,12 +2333,12 @@ td.over { color: var(--over); font-weight: 800; }
     }
     { // the far ground: grass to the horizon, or a beach running into the sea
       const far = new THREE.Mesh(new THREE.CircleGeometry(2200, 48), new THREE.MeshLambertMaterial({ color: C(h.beach ? 0xf0d595 : 0x7cad3c) }));
-      far.rotation.x = -Math.PI / 2; far.position.set((h.bounds[0] + h.bounds[2]) / 2, -0.25, (h.bounds[1] + h.bounds[3]) / 2);
+      far.rotation.x = -Math.PI / 2; far.position.set((h.bounds[0] + h.bounds[2]) / 2, -1.5, (h.bounds[1] + h.bounds[3]) / 2); // well below the course
       far.userData.own = true;
       holeGroup.add(far);
       if (h.beach) {
         const sea = new THREE.Mesh(new THREE.RingGeometry(620, 2300, 64), new THREE.MeshLambertMaterial({ color: C(0x2fcfe6) }));
-        sea.rotation.x = -Math.PI / 2; sea.position.set(far.position.x, -0.15, far.position.z);
+        sea.rotation.x = -Math.PI / 2; sea.position.set(far.position.x, -1.4, far.position.z);
         sea.userData.own = true;
         holeGroup.add(sea);
       }
@@ -2393,8 +2405,9 @@ td.over { color: var(--over); font-weight: 800; }
       const L = flightCam.land, d = flightCam.dir, side = flightCam.side;
       if (!flightCam.cut) { // cut to a camera out by where the ball will come down
         flightCam.cut = true;
-        camera.position.copy(V(L.x - d.x * 75 + -d.y * side * 30, L.y - d.y * 75 + d.x * side * 30, 32));
-        camLook.copy(V(ball.x, ball.y, ball.z || 0));
+        const cx = L.x - d.x * 75 + -d.y * side * 30, cy = L.y - d.y * 75 + d.x * side * 30;
+        camera.position.copy(V(cx, cy, 32 + Math.max(greenH(cx, cy), greenH(L.x, L.y))));
+        camLook.copy(V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y)));
       }
       pos = V(L.x - d.x * 26 + -d.y * side * 9, L.y - d.y * 26 + d.x * side * 9, 6 + (ball.z || 0) * 0.35 + greenH(L.x, L.y));
       look = V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y));
@@ -2405,14 +2418,24 @@ td.over { color: var(--over); font-weight: 800; }
       const ux = hd > 0.3 ? hx / hd : flyDir.x, uy = hd > 0.3 ? hy / hd : flyDir.y;
       const back = Math.max(1.6, 2.4 - hd) ; // trail the ball, never closer than a couple of yards to the cup
       const bx = Math.abs(hd) < 2.4 ? H.pin.x - ux * 2.6 : ball.x - ux * back, by = Math.abs(hd) < 2.4 ? H.pin.y - uy * 2.6 : ball.y - uy * back;
-      pos = V(bx - uy * 0.35, by + ux * 0.35, greenH(bx, by) + 0.42);
+      pos = V(bx - uy * 0.35, by + ux * 0.35, puttCamZ(bx, by));
       look = V(H.pin.x, H.pin.y, greenH(H.pin.x, H.pin.y) + 0.15);
       k = 1 - Math.pow(0.004, dt);
       kLook = 1 - Math.pow(0.001, dt);
     } else if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
       const back = putt ? 3.4 : phase === "roll" ? 12 : 20, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 4 + ball.z * 0.85;
-      pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
+      const px = ball.x - flyDir.x * back, py = ball.y - flyDir.y * back;
+      pos = V(px, py, up + Math.max(greenH(px, py), greenH(ball.x, ball.y))); // ride above the ground, not at a fixed height
+      if (!putt) { // and over any rise between the camera and the ball (flight and roll only)
+        const bz = (ball.z || 0) + greenH(ball.x, ball.y);
+        let lift = 0;
+        for (let i = 1; i < 10; i++) {
+          const t = i / 10, need = greenH(px + (ball.x - px) * t, py + (ball.y - py) * t) + 1 - (pos.y + (bz - pos.y) * t);
+          if (need > 0) lift = Math.max(lift, need / (1 - t));
+        }
+        pos.y += Math.min(lift, 15);
+      }
       look = V(ball.x, ball.y, (ball.z || 0) * 0.8 + greenH(ball.x, ball.y));
       k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.03 : 0.012, dt); // camera rides along behind the ball
       kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
