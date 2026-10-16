@@ -246,7 +246,7 @@ td.over { color: var(--over); font-weight: 800; }
       <div class="spcard">
         <div class="ribbon"><svg viewBox="0 0 48 48" width="46" height="46" aria-hidden="true"><path d="M14 8h20v8a10 10 0 0 1-20 0z" fill="#ffc531"/><path d="M14 11H8a7 7 0 0 0 7 8M34 11h6a7 7 0 0 1-7 8" stroke="#ffc531" stroke-width="3" fill="none"/><rect x="21" y="25" width="6" height="8" fill="#e0a51c"/><rect x="15" y="33" width="18" height="6" rx="2" fill="#2aa7e8"/></svg></div>
         <h3>Single player</h3>
-        <p>Two courses: 18 holes at Pinecrest Links and the 9-hole island course Coral Cove. Swipe to swing and beat your best round.</p>
+        <p>Three courses: Pinecrest Links, Azalea National (a tribute to Augusta) and the island course Coral Cove. Swipe to swing and beat your best round.</p>
         <button class="btn yellow" id="menuPlay" type="button">Play</button>
       </div>
       <div class="menurow">
@@ -516,6 +516,68 @@ td.over { color: var(--over); font-weight: 800; }
       clumps: [[200, -32, 9, 5]], woods: 8 },
   ];
 
+  // Azalea National: a tribute to Augusta National's 18, hole by hole (names, pars, yardages, doglegs,
+  // bunkers and water as at Augusta). Tall pines, white sand, azaleas and slick, sloping greens.
+  const AUGUSTA = [
+    { name: "Tea Olive", par: 4, pin: [444, 4], green: [440, 8, 14], slope: [1.6, -0.6], bounds: [-20, -75, 480, 80],
+      fw: [[[40, 0, 17], [250, 6, 20], [400, 10, 15]]],
+      bunkers: [[300, 29, 10, 6, 0.3], [425, -9, 6, 4, 0.6]], clumps: [[22, -30, 6, 4, "azalea"]], woods: 24 },
+    { name: "Pink Dogwood", par: 5, pin: [578, -70], green: [575, -66, 15], slope: [1.8, 0.6], bounds: [-20, -120, 615, 70],
+      fw: [[[40, 0, 18], [280, 0, 22], [420, -40, 18], [540, -62, 14]]],
+      bunkers: [[292, 31, 11, 6, 0.2], [561, -84, 6, 4, 0.4], [567, -46, 6, 4, -0.4]], woods: 26 },
+    { name: "Flowering Peach", par: 4, pin: [347, 8], green: [345, 6, 11], slope: [-2.2, 0.8], bounds: [-20, -60, 385, 65],
+      fw: [[[40, 0, 15], [300, 4, 18]]],
+      bunkers: [[258, -22, 5, 3], [270, -16, 4, 3], [282, -24, 5, 3], [292, -15, 4, 3], [338, -8, 5, 3, 0.5]], woods: 18 },
+    { name: "Flowering Crab Apple", par: 3, pin: [244, -4], green: [240, 0, 15], slope: [1.4, 1], bounds: [-20, -60, 280, 60],
+      fw: [[[14, 0, 8], [40, 0, 10]], [[205, 0, 10], [218, 0, 11]]],
+      bunkers: [[230, 18, 8, 4, -0.5], [255, -16, 6, 3]], woods: 14 },
+    { name: "Magnolia", par: 4, pin: [494, -40], green: [490, -36, 15], slope: [2, 0.6], bounds: [-20, -90, 530, 60],
+      fw: [[[40, 0, 17], [260, 0, 19], [380, -26, 16], [455, -34, 14]]],
+      bunkers: [[300, -24, 8, 5, 0.3], [318, -14, 6, 4, 0.3]], clumps: [[470, 20, 9, 4, "azalea"]], woods: 22 },
+    { name: "Juniper", par: 3, pin: [186, 6], green: [180, 0, 15], slope: [-1.8, 1.2], bounds: [-20, -55, 220, 55],
+      fw: [[[14, 0, 8], [40, 0, 10]], [[150, 0, 10], [162, 0, 11]]],
+      bunkers: [[163, -15, 7, 4, 0.4]], woods: 12 },
+    { name: "Pampas", par: 4, pin: [454, 4], green: [450, 0, 12], slope: [1.2, -1.4], bounds: [-20, -55, 490, 55],
+      fw: [[[40, 0, 14], [420, 0, 13]]],
+      bunkers: [[437, -14, 5, 3, 0.5], [440, 15, 5, 3, -0.5], [462, -13, 5, 3], [465, 13, 5, 3], [471, 0, 6, 3]], edge: 9, woods: 10 },
+    { name: "Yellow Jasmine", par: 5, pin: [574, -20], green: [570, -16, 15], slope: [-1.6, -1], bounds: [-20, -80, 610, 70],
+      fw: [[[40, 0, 18], [300, 0, 20], [460, -12, 16], [540, -14, 13]]],
+      bunkers: [[306, 27, 12, 6, 0.2]], clumps: [[555, 6, 6, 4, "bush"], [556, -38, 6, 4, "bush"]], woods: 24 },
+    { name: "Carolina Cherry", par: 4, pin: [462, -34], green: [458, -30, 14], slope: [2.4, 0.4], bounds: [-20, -85, 500, 60],
+      fw: [[[40, 0, 17], [270, 0, 19], [380, -22, 16], [425, -28, 14]]],
+      bunkers: [[447, -47, 6, 4, 0.4], [466, -48, 5, 3]], woods: 22 },
+    { name: "Camellia", par: 4, pin: [494, -92], green: [490, -88, 15], slope: [1.4, 1.4], bounds: [-20, -130, 530, 60],
+      fw: [[[40, 0, 17], [250, 0, 20], [360, -50, 18], [455, -80, 14]]],
+      bunkers: [[420, -58, 9, 6, 0.4], [502, -70, 6, 4]], woods: 22 },
+    { name: "White Dogwood", par: 4, pin: [518, -10], green: [515, -4, 15], slope: [-1.2, -1.6], bounds: [-20, -70, 555, 65],
+      fw: [[[40, 0, 18], [320, 6, 20], [470, 0, 15]]],
+      water: [[500, -31, 22, 11, 0.3]], bunkers: [[531, 14, 6, 4]], woods: 22 },
+    { name: "Golden Bell", par: 3, pin: [157, 4], green: [155, 0, 12], slope: [1, -1.4], bounds: [-20, -55, 200, 55],
+      fw: [[[14, 0, 8], [40, 0, 10]]],
+      water: [[121, 0, 9, 60, 0.05]], bunkers: [[143, -2, 6, 3, 0.1], [168, -12, 5, 3], [168, 12, 5, 3]],
+      clumps: [[188, 0, 14, 9, "azalea"]], woods: 12 },
+    { name: "Azalea", par: 5, pin: [534, -58], green: [530, -62, 15], slope: [1.6, 1.2], bounds: [-20, -110, 575, 70],
+      fw: [[[40, 0, 18], [250, 6, 20], [350, -30, 18], [470, -58, 15]]],
+      water: [[300, -46, 90, 6, 0.25], [506, -60, 6, 26, 0.05]],
+      bunkers: [[548, -76, 5, 3], [552, -62, 5, 3], [548, -48, 5, 3]],
+      clumps: [[222, -44, 13, 12, "azalea"], [150, -36, 9, 6, "azalea"]], woods: 22 },
+    { name: "Chinese Fir", par: 4, pin: [443, -10], green: [440, -14, 15], slope: [2.2, -1], bounds: [-20, -75, 480, 60],
+      fw: [[[40, 0, 18], [300, -10, 20], [410, -14, 15]]], woods: 24 },
+    { name: "Firethorn", par: 5, pin: [538, 4], green: [535, 0, 15], slope: [-1.6, 0.8], bounds: [-20, -80, 580, 70],
+      fw: [[[40, 0, 18], [320, 4, 20], [470, 4, 16]]],
+      water: [[505, 0, 13, 27], [562, -42, 20, 12, 0.3]], bunkers: [[541, 22, 6, 3]], woods: 22 },
+    { name: "Redbud", par: 3, pin: [174, -2], green: [170, 6, 15], slope: [-1, -2.4], bounds: [-20, -60, 210, 60],
+      fw: [[[14, 6, 8], [40, 6, 10]]],
+      water: [[100, -14, 55, 20, -0.15]], bunkers: [[168, 25, 6, 4, -0.3], [179, 22, 5, 3], [187, -9, 5, 3]],
+      clumps: [[195, 20, 9, 5, "azalea"]], woods: 12 },
+    { name: "Nandina", par: 4, pin: [444, 8], green: [440, 4, 14], slope: [1.4, -1.2], bounds: [-20, -65, 480, 65],
+      fw: [[[40, 0, 17], [400, 4, 16]]],
+      bunkers: [[419, 0, 7, 3, 0.1]], woods: 22 },
+    { name: "Holly", par: 4, pin: [466, 54], green: [462, 50, 15], slope: [2, -0.8], bounds: [-20, -55, 500, 100],
+      fw: [[[40, 0, 14], [220, 6, 16], [330, 30, 17], [430, 46, 14]]],
+      bunkers: [[300, 6, 8, 5, 0.3], [316, -2, 6, 4, 0.3], [447, 34, 7, 4, 0.4], [471, 68, 6, 4]], edge: 10, woods: 16 },
+  ];
+
   function rng(seed) {
     return () => {
       seed = (seed + 0x6d2b79f5) | 0;
@@ -570,7 +632,10 @@ td.over { color: var(--over); font-weight: 800; }
     const clear = (tx, ty) => hyp(tx - h.green.x, ty - h.green.y) > h.green.r + 8 && hyp(tx, ty) > 14 &&
       !h.water.some((e) => inEllipse(e, tx, ty, 4)) && !h.bunkers.some((e) => inEllipse(e, tx, ty, 3)) &&
       tx > h.bounds[0] + 4 && tx < h.bounds[2] - 4 && ty > h.bounds[1] + 4 && ty < h.bounds[3] - 4;
-    const add = (tx, ty, k) => { const [r, ht] = size(k); h.trees.push([tx, ty, r, ht, k]); };
+    const add = (tx, ty, k) => {
+      if (k === "azalea") { h.trees.push([tx, ty, 2.6 + rand() * 1.6, 3, k]); return; }
+      const [r, ht] = size(k); h.trees.push([tx, ty, r, ht, k]);
+    };
     // lines of trees beside every stretch of fairway, closer on the tight holes
     const step = def.edge || 13;
     for (const pc of h.fw) for (let k = 0; k < pc.length - 1; k++) {
@@ -582,6 +647,10 @@ td.over { color: var(--over); font-weight: 800; }
           const off = w + (def.edge ? 6 : 9) + rand() * 12, along = u + (rand() - 0.5) * step * 0.6;
           const tx = a[0] + ux * along - uy * side * off, ty = a[1] + uy * along + ux * side * off;
           if (fairwayGap(h, tx, ty) > 5 && clear(tx, ty)) add(tx, ty, kind);
+          if (def.flowers && rand() < 0.16) { // azaleas in front of the pines
+            const fx = tx - (-uy * side) * 4, fy = ty - (ux * side) * 4;
+            if (fairwayGap(h, fx, fy) > 3 && clear(fx, fy)) add(fx, fy, "azalea");
+          }
         }
       }
     }
@@ -601,6 +670,8 @@ td.over { color: var(--over); font-weight: 800; }
   }
   const COURSES = [
     { id: "pinecrest", name: "Pinecrest Links", theme: "park", blurb: "Pine-lined parkland out, the coast coming home.", holes: DEFS.map((d, i) => buildHole(d, i)) },
+    { id: "azalea", name: "Azalea National", theme: "park", blurb: "A tribute to Augusta National: all 18, Tea Olive to Holly, with Amen Corner, Rae's Creek, white sand and azaleas.",
+      holes: AUGUSTA.map((d, i) => buildHole({ ...d, theme: "pine", whiteSand: true, flowers: true }, i + 80)) },
     { id: "coral", name: "Coral Cove", theme: "beach", blurb: "An island course: sand and sea all round, creeks, lagoons and mesas.", holes: CORAL.map((d, i) => buildHole({ ...d, theme: "palm", beach: true }, i + 40)) },
   ];
   let course = COURSES[0], HOLES = course.holes;
@@ -1724,6 +1795,7 @@ td.over { color: var(--over); font-weight: 800; }
       leaves: merge([[0.3, 0.42, 0.38], [0.235, 0.36, 0.6], [0.15, 0.3, 0.8]].map(([r, h, y]) => new THREE.ConeGeometry(r, h, 9).translate(0, y, 0))),
     };
   })();
+  const AZALEA = [0xff4f9a, 0xe8357f, 0xff7fbf, 0xf6eef4, 0xd92d6a].map(C);
   const PINE = [0x2f7d3a, 0x3a8a3f, 0x2c6e36, 0x47924a, 0x35803c].map(C);
   function buildTrees(list) { // list: [x, y, r, h, kind]
     const rand = rng(31 + st.hole), m = new THREE.Object3D();
@@ -1735,11 +1807,12 @@ td.over { color: var(--over); font-weight: 800; }
         pines.push([m.matrix.clone(), PINE[Math.floor(rand() * PINE.length)], BARK[Math.floor(rand() * BARK.length)]]);
         continue;
       }
-      if (kind === "bush" || (!kind && rand() < 0.2)) { // a clump of bushes
+      if (kind === "bush" || kind === "azalea" || (!kind && rand() < 0.2)) { // a clump of bushes (or azaleas in bloom)
+        const pal = kind === "azalea" ? AZALEA : LEAF;
         for (let k = 0; k < 3; k++) {
           const a = rand() * 6.28, d = k ? r * 0.35 : 0, sc = r * (k ? 0.32 : 0.45);
           m.position.set(x + Math.cos(a) * d, sc * 0.35 + terrainH(H, x, y), y + Math.sin(a) * d); m.scale.set(sc, sc * 0.75, sc); m.rotation.set(0, rand() * 6.28, 0); m.updateMatrix();
-          bush.push([m.matrix.clone(), LEAF[Math.floor(rand() * LEAF.length)]]);
+          bush.push([m.matrix.clone(), pal[Math.floor(rand() * pal.length)]]);
         }
         continue;
       }
@@ -2137,8 +2210,8 @@ td.over { color: var(--over); font-weight: 800; }
     paintGreenSurface(g, h);
     for (const e of h.bunkers) {
       ell(g, e, 0.8); g.fillStyle = "#86b745"; g.fill();
-      ell(g, e); g.fillStyle = "#f4e2a0"; g.fill();
-      ell(g, e, -1); g.fillStyle = "#f8ecbd"; g.fill();
+      ell(g, e); g.fillStyle = h.whiteSand ? "#eef0ec" : "#f4e2a0"; g.fill();
+      ell(g, e, -1); g.fillStyle = h.whiteSand ? "#fbfcf8" : "#f8ecbd"; g.fill();
     }
     g.fillStyle = "#0000002a"; // tree shadows, sun from the upper left
     for (const [x, y, r] of h.trees) { g.beginPath(); g.ellipse(x + r * 0.6, y + r * 0.5, r * 1.05, r * 0.9, 0, 0, Math.PI * 2); g.fill(); }

@@ -1,6 +1,6 @@
 # Pinecrest Links
 
-A 3D golf game with two courses (three.js) in a single HTML file, styled after mobile swipe-golf games. Open `index.html` in a browser to play: main menu, course card and loading screen lead into the round.
+A 3D golf game with three courses (three.js) in a single HTML file, styled after mobile swipe-golf games. Open `index.html` in a browser to play: main menu, course card and loading screen lead into the round.
 
 - Swipe on the course: drag down from the ball for the backswing (up to 100%), then a tiny flick up hits it; letting go at the top without flicking resets the swing
 - Golf Dreams shot shaping: pull back left for a fade, right for a draw, then swipe up through the white fan; swinging through the fan strikes it from the middle, missing it hits the toe or heel
@@ -10,6 +10,7 @@ A 3D golf game with two courses (three.js) in a single HTML file, styled after m
 - Club sheet (blue button), shot type (orange button: Regular, Punch, Chip, Flop), binoculars to look at the target
 - Lie, distance and wind tags; hole card with score and shot number
 - Wind, fairway/rough/bunker lies, water, palms, out of bounds, green tracer with carry readout
+- Azalea National (18 holes, par 72): a tribute to Augusta National, hole by hole from Tea Olive to Holly (Amen Corner and Rae's Creek, the ponds at 15 and 16, the 18th's chute and fairway bunkers), with tall pines, white bunkers and azaleas in bloom
 - Coral Cove (9 holes, par 36): a Golf Dreams-style island course with sand and sea all round, sandstone mesas, creeks, lagoons and palms; pick it with the arrows on the course screen
 - Pinecrest Links (18 holes, par 72): a pine-lined front nine (creek crossings, a lake par 3, doglegs, a lone pine in the fairway, tight Narrows) and a coastal back nine with palms (ocean hole, island green, waste bunker, split fairway, drivable par 4, creek before the 18th green); fairways change width, break up for carries and are lined with trees
 - Drives are followed by a chase camera from behind the ball (approaches into the green still cut to a camera by the green); Golf Dreams roll-out (two bounces, then a long run: a 295-yard driver carry finishes around 350, a 7 iron runs about 10, a short iron onto the green runs on about 8 and then spins back); a blue pin marks where your club lands during the fly-in and through the binoculars; a quick dark cut between shots; the yardage rides beside the ball on putts too
