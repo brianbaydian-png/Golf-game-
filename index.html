@@ -2378,6 +2378,28 @@ td.over { color: var(--over); font-weight: 800; }
 
 
   // ---------- camera ----------
+  // keep the camera out of the ground and lift it until no hill sits between it and what it is looking at
+  function clearSight(p, look, now) {
+    const floor = greenH(p.x, p.z) + (now ? 0.35 : 0.6);
+    if (p.y < floor) p.y = floor;
+    let lift = 0;
+    for (let i = 1; i <= 19; i++) {
+      const t = i / 20, x = p.x + (look.x - p.x) * t, y = p.z + (look.z - p.z) * t, h = p.y + (look.y - p.y) * t;
+      const need = greenH(x, y) + 0.5 - h;
+      if (need > 0) lift = Math.max(lift, need / (1 - t));
+    }
+    p.y += Math.min(lift, 25);
+  }
+  // never sit inside a tree: rise over any canopy the camera would be in
+  function clearTrees(p) {
+    for (const tr of H.treesAll || H.trees) {
+      if (tr[4] === "azalea" || tr[4] === "bush") continue;
+      const dx = p.x - tr[0], dz = p.z - tr[1], r = tr[2] * 1.15;
+      if (dx * dx + dz * dz > r * r) continue;
+      const gz = greenH(tr[0], tr[1]), top = gz + tr[3] * 1.02 + 0.8;
+      if (p.y > gz + tr[3] * 0.1 && p.y < top) p.y = top;
+    }
+  }
   function updateCamera(dt) {
     if (phase === "holed" || phase === "done") { camera.lookAt(camLook); return; }
     const dir = { x: Math.cos(aimAng), y: Math.sin(aimAng) };
@@ -2393,8 +2415,9 @@ td.over { color: var(--over); font-weight: 800; }
       const L = flightCam.land, d = flightCam.dir, side = flightCam.side;
       if (!flightCam.cut) { // cut to a camera out by where the ball will come down
         flightCam.cut = true;
-        camera.position.copy(V(L.x - d.x * 75 + -d.y * side * 30, L.y - d.y * 75 + d.x * side * 30, 32));
-        camLook.copy(V(ball.x, ball.y, ball.z || 0));
+        const cx = L.x - d.x * 75 + -d.y * side * 30, cy = L.y - d.y * 75 + d.x * side * 30;
+        camera.position.copy(V(cx, cy, 32 + Math.max(greenH(cx, cy), greenH(L.x, L.y))));
+        camLook.copy(V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y)));
       }
       pos = V(L.x - d.x * 26 + -d.y * side * 9, L.y - d.y * 26 + d.x * side * 9, 6 + (ball.z || 0) * 0.35 + greenH(L.x, L.y));
       look = V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y));
@@ -2412,7 +2435,8 @@ td.over { color: var(--over); font-weight: 800; }
     } else if (phase === "flight" || phase === "roll") {
       const putt = roll && roll.putt;
       const back = putt ? 3.4 : phase === "roll" ? 12 : 20, up = putt ? 1.3 : phase === "roll" ? 3.5 + (ball.z || 0) : 4 + ball.z * 0.85;
-      pos = V(ball.x - flyDir.x * back, ball.y - flyDir.y * back, up);
+      const px = ball.x - flyDir.x * back, py = ball.y - flyDir.y * back;
+      pos = V(px, py, up + Math.max(greenH(px, py), greenH(ball.x, ball.y))); // ride above the ground, not at a fixed height
       look = V(ball.x, ball.y, (ball.z || 0) * 0.8 + greenH(ball.x, ball.y));
       k = 1 - Math.pow(putt ? 0.02 : phase === "roll" ? 0.03 : 0.012, dt); // camera rides along behind the ball
       kLook = 1 - Math.pow(putt ? 0.02 : 0.0005, dt); // but keeps its eye on the ball
@@ -2425,8 +2449,8 @@ td.over { color: var(--over); font-weight: 800; }
       look = new THREE.Vector3(pos.x + dir.x * 10 * Math.cos(pitch), pos.y - 10 * Math.sin(pitch), pos.z + dir.y * 10 * Math.cos(pitch));
       if (lookMode) { // binoculars: hover behind where the shot should land
         const L = putt ? Math.max(2, distPin()) : carryEst(), tx = ball.x + dir.x * L, ty = ball.y + dir.y * L, b2 = putt ? 9 : 30;
-        pos = V(tx - dir.x * b2, ty - dir.y * b2, putt ? 6 : 20);
-        look = V(tx, ty, 0);
+        pos = V(tx - dir.x * b2, ty - dir.y * b2, (putt ? 6 : 20) + greenH(tx, ty));
+        look = V(tx, ty, greenH(tx, ty));
       }
       k = 1 - Math.pow(0.0005, dt);
     }
@@ -2434,8 +2458,10 @@ td.over { color: var(--over); font-weight: 800; }
     // a long lens while you line up (things look closer), a little wider while the ball flies
     const fov = phase === "flight" || phase === "roll" ? 50 : 42;
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * (1 - Math.pow(0.05, dt)); camera.updateProjectionMatrix(); }
+    const ballAt = V(ball.x, ball.y, (ball.z || 0) + greenH(ball.x, ball.y) + 0.05);
+    clearSight(pos, look); clearSight(pos, ballAt); clearTrees(pos);
     camera.position.lerp(pos, k); camLook.lerp(look, Math.max(k, kLook));
-    { const floor = greenH(camera.position.x, camera.position.z) + 0.35; if (camera.position.y < floor) camera.position.y = floor; }
+    clearSight(camera.position, camLook, true); clearSight(camera.position, ballAt, true); clearTrees(camera.position);
     camera.lookAt(camLook);
   }
 
