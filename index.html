@@ -616,6 +616,11 @@ td.over { color: var(--over); font-weight: 800; }
       // rolling ground: a few long, gentle waves (used away from the fairway, the green and the hazards)
       h.waves = Array.from({ length: 5 }, () => [0.4 + r2() * 0.6, (r2() - 0.5) / (18 + r2() * 30), (r2() - 0.5) / (18 + r2() * 30), r2() * 6.28]);
       // humps and hollows on the green: these are what make the putts hard
+      // the lie of the land: a tilt across the hole plus long swells, so fairways slope side to side and
+      // rise and fall (Azalea National is hilliest, Coral Cove gentlest)
+      const roll = def.whiteSand ? 1.5 : def.beach ? 0.7 : 1;
+      h.cross = (r2() - 0.5) * 0.07 * roll;
+      h.swell = Array.from({ length: 3 }, (_, k) => [(0.9 + r2() * 1.1) * roll, (r2() - 0.5) / (25 + r2() * 30), (r2() < 0.5 ? 1 : -1) / (22 + r2() * 26 + k * 10), r2() * 6.28]);
       h.und = Array.from({ length: 3 }, (_, k) => {
         const a = r2() * 6.28, d = g[2] * (0.15 + r2() * 0.55);
         return [g[0] + Math.cos(a) * d, g[1] + Math.sin(a) * d, g[2] * (0.28 + r2() * 0.3), (k % 2 ? -1 : 1) * (0.07 + r2() * 0.08)];
@@ -666,6 +671,9 @@ td.over { color: var(--over); font-weight: 800; }
       const tx = h.bounds[0] + rand() * (h.bounds[2] - h.bounds[0]), ty = h.bounds[1] + rand() * (h.bounds[3] - h.bounds[1]);
       if (fairwayGap(h, tx, ty) > 8 && lineDist(tx, ty) > 24 && clear(tx, ty)) { add(tx, ty, rand() < 0.15 ? "bush" : kind); j++; }
     }
+    // the tee, the green and every pond sit level at the height of the land under them
+    h.tB = baseH(h, 0, 0); h.gB = baseH(h, h.green.x, h.green.y);
+    h.waterB = h.water.map((e) => baseH(h, e[0], e[1]));
     return h;
   }
   const COURSES = [
@@ -821,13 +829,27 @@ td.over { color: var(--over); font-weight: 800; }
     if (e[4]) { const c = Math.cos(e[4]), s = Math.sin(e[4]); [dx, dy] = [dx * c + dy * s, -dx * s + dy * c]; }
     return Math.sqrt((dx / e[2]) ** 2 + (dy / e[3]) ** 2);
   }
+  function baseH(h, x, y) { // the broad slope of the land, fairways included
+    let z = h.cross * y;
+    for (const [a, fx, fy, p] of h.swell) z += a * Math.sin(x * fx + y * fy + p);
+    return z;
+  }
+  function groundBase(h, x, y) { // ... levelled around the tee, the green and the water
+    let z = baseH(h, x, y);
+    const g = h.green;
+    z = h.gB + (z - h.gB) * smooth01((hyp(x - g.x, y - g.y) - g.r - 4) / 14);
+    z = h.tB + (z - h.tB) * smooth01((hyp(x, y) - 6) / 10);
+    h.water.forEach((e, i) => { const wl = h.waterB[i]; z = wl + (z - wl) * smooth01((ellQ(e, x, y) - 1) * Math.min(e[2], e[3]) / 12); });
+    return z;
+  }
   function terrainH(h, x, y) {
     if (!h || !h.waves) return 0;
     const g = h.green, [x0, y0, x1, y1] = h.bounds;
     const out = Math.max(x0 - x, x - x1, y0 - y, y - y1, 0); // yards beyond the boundary
+    const base = groundBase(h, x, y) * smooth01((60 - out) / 14);
     let m = smooth01((fairwayGap(h, x, y) - 3) / 22) * smooth01((hyp(x - g.x, y - g.y) - g.r - 5) / 16) * smooth01((hyp(x, y) - 8) / 14);
     for (const e of h.water) m *= smooth01((ellQ(e, x, y) - 1) * Math.min(e[2], e[3]) / 8);
-    if (m < 0.001 && !h.bunkers.length) return 0;
+    if (m < 0.001 && !h.bunkers.length) return base;
     let n = 0;
     for (const [a, fx, fy, p] of h.waves) n += a * Math.sin(x * fx + y * fy + p);
     n = 0.5 + n / 6;
@@ -838,7 +860,11 @@ td.over { color: var(--over); font-weight: 800; }
       if (q < 1) z = Math.min(z, -0.45 * (1 - q * q)) - 0.02;
       else if ((q - 1) * rr < 1.8) z = Math.max(z, 0.28 * Math.sin(Math.PI * (q - 1) * rr / 1.8)); // the lip
     }
-    return z;
+    return base + z;
+  }
+  function groundGrad(x, y) { // slope of the ground (off the green)
+    const e = 0.25;
+    return [(terrainH(H, x + e, y) - terrainH(H, x - e, y)) / (2 * e), (terrainH(H, x, y + e) - terrainH(H, x, y - e)) / (2 * e)];
   }
   const greenH = (x, y) => greenHAt(H, x, y) + terrainH(H, x, y);
   function greenGrad(x, y) { // the green's own slope (the ground around it is flat)
@@ -873,11 +899,18 @@ td.over { color: var(--over); font-weight: 800; }
     renderCard();
   }
 
+  // how much the ground rises to the right of the target line where the ball sits (+: ball above your feet)
+  function sideLie() {
+    if (lie === "tee" || lie === "green") return 0;
+    const [gx, gy] = groundGrad(ball.x, ball.y);
+    return Math.max(-0.09, Math.min(0.09, gx * -Math.sin(aimAng) + gy * Math.cos(aimAng)));
+  }
   function prepareShot() {
     lie = lieAt(H, ball.x, ball.y);
     if (strokes >= MAX_STROKES) return finishHole(MAX_STROKES, true);
     clubIdx = autoClub();
     autoAim();
+    { const sl = sideLie(); if (Math.abs(sl) > 0.03 && !club().putter) toast = { text: sl > 0 ? "Ball above your feet: it will draw left" : "Ball below your feet: it will fade right", t: 140 }; }
     phase = "aim"; meter = { stage: 0, m: 0, power: 0 }; ball.z = 0; pose.script = null;
     Object.assign(ui2, { meter: 0, alpha: 0, fanA: 0 });
     shotType = "full"; lookMode = false;
@@ -1034,6 +1067,7 @@ td.over { color: var(--over); font-weight: 800; }
     strokes++;
     const S = shotSpec();
     let a = sw.curve * S.miss;
+    if (!c.putter) a -= sideLie() * 70; // ball above your feet draws, below your feet fades
     if (power > 1) a = a * (1 + (power - 1) * 6) + (Math.random() - 0.5) * (power - 1) * 40;
     trail = [];
 
@@ -1249,6 +1283,12 @@ td.over { color: var(--over); font-weight: 800; }
       roll.vx *= (sp - dec) / sp; roll.vy *= (sp - dec) / sp;
       if (l === "green" || l === "fringe") { // gravity along the real surface of the green
         const [ax, ay] = slopePull(ball.x, ball.y, l);
+        roll.vx += ax * dt; roll.vy += ay * dt;
+      }
+      else if (l === "fairway" || l === "rough" || l === "tee") { // it feeds off the slopes of the fairway
+        const [gx, gy] = groundGrad(ball.x, ball.y), cap = DECEL[l] * 0.55;
+        let ax = -gx * 10.7 * 0.55, ay = -gy * 10.7 * 0.55; const m = hyp(ax, ay);
+        if (m > cap) { ax *= cap / m; ay *= cap / m; }
         roll.vx += ax * dt; roll.vy += ay * dt;
       }
       ball.x += roll.vx * dt; ball.y += roll.vy * dt;
@@ -2269,14 +2309,14 @@ td.over { color: var(--over); font-weight: 800; }
     }
     addGrain(ggeo, ga.R * 2 / 0.5, ga.R * 2 / 0.5);
     greenMesh = new THREE.Mesh(ggeo, new THREE.MeshLambertMaterial({ map: gtex, aoMap: grainTex, aoMapIntensity: 0.2, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
-    greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.pin.x, 0.005, h.pin.y);
+    greenMesh.rotation.x = -Math.PI / 2; greenMesh.position.set(h.pin.x, 0.005 + h.gB, h.pin.y);
     for (const m of [plane, greenMesh]) { m.receiveShadow = true; m.userData.own = true; }
     holeGroup.add(plane, greenMesh);
     holeGroup.userData = { art };
     for (const e of h.water) { // shiny water surface over the painted pond
       const w = new THREE.Mesh(waterGeo, waterMat);
       w.scale.set(Math.max(1, e[2] - 0.4), Math.max(1, e[3] - 0.4), 1);
-      w.rotation.set(-Math.PI / 2, 0, -(e[4] || 0)); w.position.set(e[0], 0.04, e[1]);
+      w.rotation.set(-Math.PI / 2, 0, -(e[4] || 0)); w.position.set(e[0], 0.04 + h.waterB[h.water.indexOf(e)], e[1]);
       holeGroup.add(w);
     }
     { // the far ground: grass to the horizon, or a beach running into the sea
@@ -2328,9 +2368,9 @@ td.over { color: var(--over); font-weight: 800; }
       }
     }
     scene.add(holeGroup);
-    pinGroup.position.copy(V(h.pin.x, h.pin.y)); // the stick stands on the bottom of the cup
+    pinGroup.position.copy(V(h.pin.x, h.pin.y, h.gB)); // the stick stands on the bottom of the cup
     const cupDepth = greenHAt(h, h.pin.x, h.pin.y);
-    cupGroup.position.copy(V(h.pin.x, h.pin.y));
+    cupGroup.position.copy(V(h.pin.x, h.pin.y, h.gB));
     cupWall.scale.y = cupDepth; cupWall.position.y = cupDepth / 2;
     cupLiner.position.y = cupDepth - 0.014;
     for (let i = 0; i < DOTS; i++) seedDot(i, true);
@@ -2444,7 +2484,7 @@ td.over { color: var(--over); font-weight: 800; }
     const showBall = phase !== "done";
     ballMesh.visible = showBall;
     const teed = lie === "tee" && (phase === "aim" || phase === "swing");
-    teePeg.visible = teed; teePeg.position.copy(V(ball.x, ball.y));
+    teePeg.visible = teed; teePeg.position.copy(V(ball.x, ball.y, greenH(ball.x, ball.y)));
     const z = (ball.z || 0) + (teed ? TEE_UP : 0), d = camera.position.distanceTo(V(ball.x, ball.y, z));
     const s = Math.max(0.026, d * 0.0045);
     ballMesh.scale.setScalar(s); ballMesh.position.copy(V(ball.x, ball.y, greenH(ball.x, ball.y) + z + s));

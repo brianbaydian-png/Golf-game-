@@ -16,6 +16,7 @@ A 3D golf game with three courses (three.js) in a single HTML file, styled after
 - Drives are followed by a chase camera from behind the ball (approaches into the green still cut to a camera by the green); Golf Dreams roll-out (two bounces, then a long run: a 295-yard driver carry finishes around 350, a 7 iron runs about 10, a short iron onto the green runs on about 8 and then spins back); a blue pin marks where your club lands during the fly-in and through the binoculars; a quick dark cut between shots; the yardage rides beside the ball on putts too
 - Wedges and short irons spin back on the green; putts cut to a low camera gliding toward the hole; the green grid is red above the hole and green below it
 - Four rivals (Maya, Theo, Jules, Kai) post scores on the end-of-hole card and the scorecard; you finish 1st, T2 and so on; every hole earns XP
+- Sloping fairways on every course: each hole tilts side to side and rises and falls in long swells (hilliest at Azalea National); the ball feeds downhill as it rolls, and a ball above or below your feet draws or fades
 - Golf Dreams-style ground: rolling hills in the rough rising to dunes or hills beyond the boundary, bunkers sunk into the ground with raised lips
 - Hard greens: quick, with humps and hollows and strong break; the guide line shows the first 40% of the putt
 - Putting: a white line shows how the putt starts to break; while you pull back, a ring shows where it will stop. Bigger cup, softer breaks
